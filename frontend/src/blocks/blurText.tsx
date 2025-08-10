@@ -14,6 +14,7 @@ type BlurTextProps = {
   easing?: (t: number) => number;
   onAnimationComplete?: () => void;
   stepDuration?: number;
+  style?: React.CSSProperties;
 };
 
 const buildKeyframes = (
@@ -45,6 +46,7 @@ const BlurText: React.FC<BlurTextProps> = ({
   easing = (t) => t,
   onAnimationComplete,
   stepDuration = 0.35,
+  style,
 }) => {
   const elements = animateBy === "words" ? text.split(" ") : text.split("");
   const [inView, setInView] = useState(false);
@@ -119,6 +121,7 @@ const BlurText: React.FC<BlurTextProps> = ({
             style={{
               display: "inline-block",
               willChange: "transform, filter, opacity",
+              ...style,
             }}
           >
             {segment === " " ? "\u00A0" : segment}

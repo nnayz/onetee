@@ -129,4 +129,17 @@
   h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
     font-family: var(--font-sans);
   }
+
+  /* Custom font classes */
+  .font-host-grotesk {
+    font-family: 'Host Grotesk', sans-serif !important;
+  }
+
+  .font-playwrite {
+    font-family: 'Dancing Script', cursive !important;
+  }
+
+  .font-inter {
+    font-family: 'Inter', sans-serif !important;
+  }
 }
