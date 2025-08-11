@@ -21,20 +21,10 @@ const LandingPage: FC = () => {
         {/* Hero Section - Left aligned */}
         <div className="space-y-12 max-w-5xl">
           {/* Main headline */}
-          <div className="space-y-6">
-            <BlurText
-              text="OneTee creates"
-              delay={100}
-              animateBy="words"
-              direction="top"
-              onAnimationComplete={handleAnimationComplete}
-              className="text-5xl md:text-6xl lg:text-7xl font-light tracking-tight leading-[0.85]"
-              style={{ fontFamily: 'Host Grotesk, sans-serif' }}
-            />
             
             <div className="space-y-3">
               <BlurText
-                text="meaningful"
+                text="OneTee. "
                 delay={400}
                 animateBy="words"
                 direction="bottom"
@@ -43,40 +33,18 @@ const LandingPage: FC = () => {
                 style={{ fontFamily: 'Dancing Script, cursive' }}
               />
               <BlurText
-                text="connections."
+                text="OneTeam!"
                 delay={600}
                 animateBy="words"
                 direction="bottom"
                 onAnimationComplete={handleAnimationComplete}
-                className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[0.85]"
+                className="text-5xl md:text-6xl lg:text-7xl font-light tracking-tight leading-[0.85]"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               />
             </div>
-          </div>
           
-          {/* Brand slogan */}
-          <div className="mt-20 space-y-6">
-            <div className="flex items-baseline space-x-6 flex-wrap">
-              <BlurText
-                text="OneTee."
-                delay={900}
-                animateBy="words"
-                direction="bottom"
-                onAnimationComplete={handleAnimationComplete}
-                className="text-2xl md:text-3xl lg:text-4xl font-light tracking-wide"
-                style={{ fontFamily: 'Host Grotesk, sans-serif' }}
-              />
-              <BlurText
-                text="OneTeam!"
-                delay={1100}
-                animateBy="words"
-                direction="bottom"
-                onAnimationComplete={handleAnimationComplete}
-                className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-wide"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              />
-            </div>
-          </div>
+          
+          
         </div>
       </div>
       
