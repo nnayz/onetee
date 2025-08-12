@@ -1,4 +1,50 @@
-# React + TypeScript + Vite
+# OneTee Frontend
+
+A React + TypeScript + Vite application for OneTee, a premium team apparel platform.
+
+## Features
+
+- **Coming Soon Page**: Flexible coming soon page system that can be toggled with environment variables
+- **Responsive Design**: Modern, mobile-first design with Tailwind CSS
+- **TypeScript**: Full type safety throughout the application
+- **React Router**: Client-side routing for smooth navigation
+
+## Quick Start
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Start development server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Build for production**:
+   ```bash
+   npm run build
+   ```
+
+## Coming Soon Page
+
+This project includes a flexible coming soon page system. See [COMING_SOON_SETUP.md](./COMING_SOON_SETUP.md) for detailed instructions.
+
+### Quick Setup
+
+To show the coming soon page:
+```bash
+# Create .env file
+echo "VITE_COMING_SOON=true" > .env
+```
+
+To show the full app:
+```bash
+# Create .env file
+echo "VITE_COMING_SOON=false" > .env
+```
+
+## Development
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
