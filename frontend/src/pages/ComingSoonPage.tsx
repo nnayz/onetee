@@ -8,6 +8,7 @@ import logo from "@/assets/logo_png.png";
 const ComingSoonPage: FC = () => {
   const [imageData, setImageData] = useState<ImageData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logoVisible, setLogoVisible] = useState(false);
 
   useEffect(() => {
     async function loadLogo() {
@@ -33,6 +34,15 @@ const ComingSoonPage: FC = () => {
 
     loadLogo();
   }, []);
+
+  // When loading completes and we have imageData, fade the logo in smoothly
+  useEffect(() => {
+    if (!loading && imageData) {
+      // Small delay ensures the initial "opacity-0 scale-95" state is painted
+      const timeoutId = setTimeout(() => setLogoVisible(true), 120);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [loading, imageData]);
   
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative', backgroundColor: '#000000' }}>
@@ -46,27 +56,31 @@ const ComingSoonPage: FC = () => {
         mouseInfluence={0.1}
         noiseAmount={0.1}
         distortion={0.05}
+        brightness={3.0}
         className="custom-rays"
       />
       <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
         <div className="flex-1 flex items-end justify-center">
           <div className="w-30 h-30 flex items-center justify-center pointer-events-none">
-            {loading && <div className="text-white text-center">Loading...</div>}
-            {!loading && imageData && (
-              <div className="w-full h-full">
-                <MetallicPaint 
-                  imageData={imageData} 
-                  params={{ 
-                    edge: 1, 
-                    patternBlur: 0.01, 
-                    patternScale: 1, 
-                    refraction: 0.05, 
-                    speed: 0.3, 
-                    liquid: 0.2 
-                  }} 
+            <div
+              className={`w-full h-full transform transition-all duration-1200 ease-out will-change-transform will-change-opacity ${
+                logoVisible ? "opacity-100 scale-100 blur-0" : "opacity-0 scale-95 blur-[1px]"
+              }`}
+            >
+              {imageData && (
+                <MetallicPaint
+                  imageData={imageData}
+                  params={{
+                    edge: 1,
+                    patternBlur: 0.01,
+                    patternScale: 1,
+                    refraction: 0.05,
+                    speed: 0.3,
+                    liquid: 0.2,
+                  }}
                 />
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
         <div className="flex-1 flex items-start justify-center">

@@ -24,6 +24,8 @@ interface LightRaysProps {
   mouseInfluence?: number;
   noiseAmount?: number;
   distortion?: number;
+  // Multiplier applied to the final color in the shader. 1.0 = unchanged, >1.0 = brighter
+  brightness?: number;
   className?: string;
 }
 
@@ -66,6 +68,25 @@ const getAnchorAndDir = (
   }
 };
 
+type Uniforms = {
+  iTime: { value: number };
+  iResolution: { value: [number, number] };
+  rayPos: { value: [number, number] };
+  rayDir: { value: [number, number] };
+  raysColor: { value: [number, number, number] };
+  raysSpeed: { value: number };
+  lightSpread: { value: number };
+  rayLength: { value: number };
+  pulsating: { value: number };
+  fadeDistance: { value: number };
+  saturation: { value: number };
+  mousePos: { value: [number, number] };
+  mouseInfluence: { value: number };
+  noiseAmount: { value: number };
+  distortion: { value: number };
+  overallBrightness: { value: number };
+};
+
 const LightRays: React.FC<LightRaysProps> = ({
   raysOrigin = "top-center",
   raysColor = DEFAULT_COLOR,
@@ -79,15 +100,16 @@ const LightRays: React.FC<LightRaysProps> = ({
   mouseInfluence = 0.1,
   noiseAmount = 0.0,
   distortion = 0.0,
+  brightness = 1.6,
   className = "",
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const uniformsRef = useRef<any>(null);
+  const uniformsRef = useRef<Uniforms | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const mouseRef = useRef({ x: 0.5, y: 0.5 });
   const smoothMouseRef = useRef({ x: 0.5, y: 0.5 });
   const animationIdRef = useRef<number | null>(null);
-  const meshRef = useRef<any>(null);
+  const meshRef = useRef<Mesh | null>(null);
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -169,6 +191,7 @@ uniform vec2  mousePos;
 uniform float mouseInfluence;
 uniform float noiseAmount;
 uniform float distortion;
+uniform float overallBrightness;
 
 varying vec2 vUv;
 
@@ -242,10 +265,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 void main() {
   vec4 color;
   mainImage(color, gl_FragCoord.xy);
+  color.rgb *= overallBrightness;
   gl_FragColor  = color;
 }`;
 
-      const uniforms = {
+      const uniforms: Uniforms = {
         iTime: { value: 0 },
         iResolution: { value: [1, 1] },
 
@@ -263,6 +287,7 @@ void main() {
         mouseInfluence: { value: mouseInfluence },
         noiseAmount: { value: noiseAmount },
         distortion: { value: distortion },
+        overallBrightness: { value: brightness },
       };
       uniformsRef.current = uniforms;
 
@@ -383,6 +408,7 @@ void main() {
     mouseInfluence,
     noiseAmount,
     distortion,
+    brightness,
   ]);
 
   useEffect(() => {
@@ -402,6 +428,7 @@ void main() {
     u.mouseInfluence.value = mouseInfluence;
     u.noiseAmount.value = noiseAmount;
     u.distortion.value = distortion;
+    u.overallBrightness.value = brightness;
 
     const { clientWidth: wCSS, clientHeight: hCSS } = containerRef.current;
     const dpr = renderer.dpr;
@@ -420,6 +447,7 @@ void main() {
     mouseInfluence,
     noiseAmount,
     distortion,
+    brightness,
   ]);
 
   useEffect(() => {
