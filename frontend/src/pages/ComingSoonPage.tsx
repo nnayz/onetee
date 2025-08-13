@@ -30,7 +30,7 @@ const ComingSoonPage: FC = () => {
         mouseInfluence={0.1}
         noiseAmount={0.1}
         distortion={0.05}
-        brightness={15.0}
+        brightness={4.0}
         className="custom-rays"
       />
       <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
