@@ -24,11 +24,7 @@ interface LightRaysProps {
   mouseInfluence?: number;
   noiseAmount?: number;
   distortion?: number;
-  // Multiplier applied to the final color in the shader. 1.0 = unchanged, >1.0 = brighter
-  brightness?: number;
   className?: string;
-  // When true, automatically increases lighting on narrow/mobile viewports
-  enableMobileBoost?: boolean;
 }
 
 const DEFAULT_COLOR = "#ffffff";
@@ -70,25 +66,6 @@ const getAnchorAndDir = (
   }
 };
 
-type Uniforms = {
-  iTime: { value: number };
-  iResolution: { value: [number, number] };
-  rayPos: { value: [number, number] };
-  rayDir: { value: [number, number] };
-  raysColor: { value: [number, number, number] };
-  raysSpeed: { value: number };
-  lightSpread: { value: number };
-  rayLength: { value: number };
-  pulsating: { value: number };
-  fadeDistance: { value: number };
-  saturation: { value: number };
-  mousePos: { value: [number, number] };
-  mouseInfluence: { value: number };
-  noiseAmount: { value: number };
-  distortion: { value: number };
-  overallBrightness: { value: number };
-};
-
 const LightRays: React.FC<LightRaysProps> = ({
   raysOrigin = "top-center",
   raysColor = DEFAULT_COLOR,
@@ -102,24 +79,38 @@ const LightRays: React.FC<LightRaysProps> = ({
   mouseInfluence = 0.1,
   noiseAmount = 0.0,
   distortion = 0.0,
-  brightness = 1.6,
   className = "",
-  enableMobileBoost = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const uniformsRef = useRef<Uniforms | null>(null);
+  const uniformsRef = useRef<any>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const mouseRef = useRef({ x: 0.5, y: 0.5 });
   const smoothMouseRef = useRef({ x: 0.5, y: 0.5 });
   const animationIdRef = useRef<number | null>(null);
-  const meshRef = useRef<Mesh | null>(null);
+  const meshRef = useRef<any>(null);
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
-  const [isVisible, setIsVisible] = useState(true);
-  // no observer; initialize immediately
+  const [isVisible, setIsVisible] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Initialize immediately; no intersection gating
   useEffect(() => {
-    setIsVisible(true);
+    if (!containerRef.current) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    observerRef.current.observe(containerRef.current);
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -132,6 +123,8 @@ const LightRays: React.FC<LightRaysProps> = ({
 
     const initializeWebGL = async () => {
       if (!containerRef.current) return;
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       if (!containerRef.current) return;
 
@@ -176,7 +169,6 @@ uniform vec2  mousePos;
 uniform float mouseInfluence;
 uniform float noiseAmount;
 uniform float distortion;
-uniform float overallBrightness;
 
 varying vec2 vUv;
 
@@ -195,11 +187,10 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
   float spreadFactor = pow(max(distortedAngle, 0.0), 1.0 / max(lightSpread, 0.001));
 
   float distance = length(sourceToCoord);
-  float maxDim = max(iResolution.x, iResolution.y);
-  float maxDistance = maxDim * rayLength;
+  float maxDistance = iResolution.x * rayLength;
   float lengthFalloff = clamp((maxDistance - distance) / maxDistance, 0.0, 1.0);
   
-  float fadeFalloff = clamp((maxDim * fadeDistance - distance) / (maxDim * fadeDistance), 0.5, 1.0);
+  float fadeFalloff = clamp((iResolution.x * fadeDistance - distance) / (iResolution.x * fadeDistance), 0.5, 1.0);
   float pulse = pulsating > 0.5 ? (0.8 + 0.2 * sin(iTime * speed * 3.0)) : 1.0;
 
   float baseStrength = clamp(
@@ -251,11 +242,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 void main() {
   vec4 color;
   mainImage(color, gl_FragCoord.xy);
-  color.rgb *= overallBrightness;
   gl_FragColor  = color;
 }`;
 
-      const uniforms: Uniforms = {
+      const uniforms = {
         iTime: { value: 0 },
         iResolution: { value: [1, 1] },
 
@@ -273,7 +263,6 @@ void main() {
         mouseInfluence: { value: mouseInfluence },
         noiseAmount: { value: noiseAmount },
         distortion: { value: distortion },
-        overallBrightness: { value: brightness },
       };
       uniformsRef.current = uniforms;
 
@@ -285,20 +274,6 @@ void main() {
       });
       const mesh = new Mesh(gl, { geometry, program });
       meshRef.current = mesh;
-
-      const applyScaledParams = (wCSS: number, hCSS: number) => {
-        const u = uniformsRef.current!;
-        const isNarrow = enableMobileBoost && Math.min(wCSS, hCSS) < 520;
-        const lengthScale = isNarrow ? 1.6 : 1.0;
-        const brightnessScale = isNarrow ? 1.5 : 1.0;
-        const fadeScale = isNarrow ? 1.3 : 1.0;
-        const spreadScale = isNarrow ? 1.15 : 1.0;
-
-        u.rayLength.value = rayLength * lengthScale;
-        u.overallBrightness.value = brightness * brightnessScale;
-        u.fadeDistance.value = fadeDistance * fadeScale;
-        u.lightSpread.value = lightSpread * spreadScale;
-      };
 
       const updatePlacement = () => {
         if (!containerRef.current || !renderer) return;
@@ -317,9 +292,6 @@ void main() {
         const { anchor, dir } = getAnchorAndDir(raysOrigin, w, h);
         uniforms.rayPos.value = anchor;
         uniforms.rayDir.value = dir;
-
-        // Re-apply scaled params on resize to keep mobile boost accurate
-        applyScaledParams(wCSS, hCSS);
       };
 
       const loop = (t: number) => {
@@ -411,8 +383,6 @@ void main() {
     mouseInfluence,
     noiseAmount,
     distortion,
-    brightness,
-    enableMobileBoost,
   ]);
 
   useEffect(() => {
@@ -432,7 +402,6 @@ void main() {
     u.mouseInfluence.value = mouseInfluence;
     u.noiseAmount.value = noiseAmount;
     u.distortion.value = distortion;
-    u.overallBrightness.value = brightness;
 
     const { clientWidth: wCSS, clientHeight: hCSS } = containerRef.current;
     const dpr = renderer.dpr;
@@ -451,7 +420,6 @@ void main() {
     mouseInfluence,
     noiseAmount,
     distortion,
-    brightness,
   ]);
 
   useEffect(() => {
