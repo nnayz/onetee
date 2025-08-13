@@ -27,6 +27,8 @@ interface LightRaysProps {
   // Multiplier applied to the final color in the shader. 1.0 = unchanged, >1.0 = brighter
   brightness?: number;
   className?: string;
+  // When true, automatically increases lighting on narrow/mobile viewports
+  enableMobileBoost?: boolean;
 }
 
 const DEFAULT_COLOR = "#ffffff";
@@ -102,6 +104,7 @@ const LightRays: React.FC<LightRaysProps> = ({
   distortion = 0.0,
   brightness = 1.6,
   className = "",
+  enableMobileBoost = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const uniformsRef = useRef<Uniforms | null>(null);
@@ -111,28 +114,12 @@ const LightRays: React.FC<LightRaysProps> = ({
   const animationIdRef = useRef<number | null>(null);
   const meshRef = useRef<Mesh | null>(null);
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
+  // no observer; initialize immediately
 
+  // Initialize immediately; no intersection gating
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        setIsVisible(entry.isIntersecting);
-      },
-      { threshold: 0.1 }
-    );
-
-    observerRef.current.observe(containerRef.current);
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-        observerRef.current = null;
-      }
-    };
+    setIsVisible(true);
   }, []);
 
   useEffect(() => {
@@ -145,8 +132,6 @@ const LightRays: React.FC<LightRaysProps> = ({
 
     const initializeWebGL = async () => {
       if (!containerRef.current) return;
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
       if (!containerRef.current) return;
 
@@ -210,10 +195,11 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
   float spreadFactor = pow(max(distortedAngle, 0.0), 1.0 / max(lightSpread, 0.001));
 
   float distance = length(sourceToCoord);
-  float maxDistance = iResolution.x * rayLength;
+  float maxDim = max(iResolution.x, iResolution.y);
+  float maxDistance = maxDim * rayLength;
   float lengthFalloff = clamp((maxDistance - distance) / maxDistance, 0.0, 1.0);
   
-  float fadeFalloff = clamp((iResolution.x * fadeDistance - distance) / (iResolution.x * fadeDistance), 0.5, 1.0);
+  float fadeFalloff = clamp((maxDim * fadeDistance - distance) / (maxDim * fadeDistance), 0.5, 1.0);
   float pulse = pulsating > 0.5 ? (0.8 + 0.2 * sin(iTime * speed * 3.0)) : 1.0;
 
   float baseStrength = clamp(
@@ -300,6 +286,20 @@ void main() {
       const mesh = new Mesh(gl, { geometry, program });
       meshRef.current = mesh;
 
+      const applyScaledParams = (wCSS: number, hCSS: number) => {
+        const u = uniformsRef.current!;
+        const isNarrow = enableMobileBoost && Math.min(wCSS, hCSS) < 520;
+        const lengthScale = isNarrow ? 1.6 : 1.0;
+        const brightnessScale = isNarrow ? 1.5 : 1.0;
+        const fadeScale = isNarrow ? 1.3 : 1.0;
+        const spreadScale = isNarrow ? 1.15 : 1.0;
+
+        u.rayLength.value = rayLength * lengthScale;
+        u.overallBrightness.value = brightness * brightnessScale;
+        u.fadeDistance.value = fadeDistance * fadeScale;
+        u.lightSpread.value = lightSpread * spreadScale;
+      };
+
       const updatePlacement = () => {
         if (!containerRef.current || !renderer) return;
 
@@ -317,6 +317,9 @@ void main() {
         const { anchor, dir } = getAnchorAndDir(raysOrigin, w, h);
         uniforms.rayPos.value = anchor;
         uniforms.rayDir.value = dir;
+
+        // Re-apply scaled params on resize to keep mobile boost accurate
+        applyScaledParams(wCSS, hCSS);
       };
 
       const loop = (t: number) => {
@@ -409,6 +412,7 @@ void main() {
     noiseAmount,
     distortion,
     brightness,
+    enableMobileBoost,
   ]);
 
   useEffect(() => {

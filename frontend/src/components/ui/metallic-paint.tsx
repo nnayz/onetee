@@ -314,7 +314,8 @@ void main() {
     float opacity = 1.;
     vec3 color1 = vec3(.98, 0.98, 1.);
     vec3 color2 = vec3(.1, .1, .1 + .1 * smoothstep(.7, 1.3, uv.x + uv.y));
-    float edge = img.r;
+    // Treat transparent background as outside (edge=1) and opaque logo as inside (edge=0)
+    float edge = 1.0 - img.a;
     vec2 grad_uv = uv;
     grad_uv -= .5;
     float dist = length(grad_uv + vec2(0., .2 * diagonal));
@@ -371,9 +372,11 @@ void main() {
 
 export default function MetallicPaint({
   imageData,
+  imageUrl,
   params = defaultParams,
 }: {
-  imageData: ImageData;
+  imageData?: ImageData;
+  imageUrl?: string;
   params: ShaderParams;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -381,6 +384,7 @@ export default function MetallicPaint({
   const [uniforms, setUniforms] = useState<
     Record<string, WebGLUniformLocation>
   >({});
+  const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
   const totalAnimationTime = useRef(0);
   const lastRenderTime = useRef(0);
 
@@ -493,6 +497,25 @@ export default function MetallicPaint({
     updateUniforms();
   }, []);
 
+  // Fast path: load image from URL into ImageBitmap for instant upload to GPU
+  useEffect(() => {
+    let revoked = false;
+    if (!imageUrl) return;
+    (async () => {
+      try {
+        const res = await fetch(imageUrl, { cache: 'force-cache' });
+        const blob = await res.blob();
+        const bmp = await createImageBitmap(blob);
+        if (!revoked) setBitmap(bmp);
+      } catch (e) {
+        console.error('Failed to load imageUrl', e);
+      }
+    })();
+    return () => {
+      revoked = true;
+    };
+  }, [imageUrl]);
+
   useEffect(() => {
     if (!gl || !uniforms) return;
     updateUniforms();
@@ -526,8 +549,12 @@ export default function MetallicPaint({
     if (!canvasEl || !gl || !uniforms) return;
 
     function resizeCanvas() {
-      if (!canvasEl || !gl || !uniforms || !imageData) return;
-      const imgRatio = imageData.width / imageData.height;
+      if (!canvasEl || !gl || !uniforms) return;
+      const imgRatio = imageData
+        ? imageData.width / imageData.height
+        : bitmap
+        ? bitmap.width / bitmap.height
+        : 1;
       gl.uniform1f(uniforms.u_img_ratio, imgRatio);
 
       const side = 1000;
@@ -544,7 +571,7 @@ export default function MetallicPaint({
     return () => {
       window.removeEventListener("resize", resizeCanvas);
     };
-  }, [gl, uniforms, imageData]);
+  }, [gl, uniforms, imageData, bitmap]);
 
   useEffect(() => {
     if (!gl || !uniforms) return;
@@ -589,6 +616,39 @@ export default function MetallicPaint({
       }
     };
   }, [gl, uniforms, imageData]);
+
+  // Upload from ImageBitmap when provided
+  useEffect(() => {
+    if (!gl || !uniforms || !bitmap) return;
+
+    const imageTexture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, imageTexture);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    try {
+      // WebGL2 accepts ImageBitmap directly
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        bitmap
+      );
+      gl.uniform1i(uniforms.u_image_texture, 0);
+    } catch (e) {
+      console.error('Error uploading bitmap texture:', e);
+    }
+
+    return () => {
+      if (imageTexture) gl.deleteTexture(imageTexture);
+    };
+  }, [gl, uniforms, bitmap]);
 
   return <canvas ref={canvasRef} className="block w-full h-full object-contain" />;
 }
