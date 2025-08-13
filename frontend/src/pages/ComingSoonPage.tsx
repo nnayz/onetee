@@ -25,12 +25,12 @@ const ComingSoonPage: FC = () => {
         raysColor="#ffffff"
         raysSpeed={1.5}
         lightSpread={0.8}
-        rayLength={1.5}
+        rayLength={2.0}
         followMouse={true}
         mouseInfluence={0.1}
         noiseAmount={0.1}
         distortion={0.05}
-        brightness={4.0}
+        brightness={1.5}
         className="custom-rays"
       />
       <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
