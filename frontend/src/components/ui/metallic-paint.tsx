@@ -574,7 +574,7 @@ export default function MetallicPaint({
   }, [gl, uniforms, imageData, bitmap]);
 
   useEffect(() => {
-    if (!gl || !uniforms) return;
+    if (!gl || !uniforms || !imageData) return;
 
     const existingTexture = gl.getParameter(gl.TEXTURE_BINDING_2D);
     if (existingTexture) {
@@ -597,12 +597,12 @@ export default function MetallicPaint({
         gl.TEXTURE_2D,
         0,
         gl.RGBA,
-        imageData?.width,
-        imageData?.height,
+        imageData.width,
+        imageData.height,
         0,
         gl.RGBA,
         gl.UNSIGNED_BYTE,
-        imageData?.data
+        imageData.data
       );
 
       gl.uniform1i(uniforms.u_image_texture, 0);
