@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: alpine/postgres:15
+    environment:
+      POSTGRES_USER: onetee_user
+      POSTGRES_PASSWORD: onetee_password
+      POSTGRES_DB: onetee_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
