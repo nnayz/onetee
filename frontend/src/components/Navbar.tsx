@@ -1,18 +1,24 @@
 import type { FC } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import logo from "@/assets/logo_png.png";
 
 const Navbar: FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   return (
-    <nav className="fixed top-0 inset-x-0 z-50 bg-inherit backdrop-blur border-none border-gray-200">
+    <nav className="fixed top-0 inset-x-0 z-50 bg-inherit border-none border-gray-200 pt-5">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-lg font-extralight text-gray-900 tracking-wider" style={{ fontFamily: 'var(--font-sans)' }}>OneTee</span>
+        <div className="flex items-center gap-3 ml-8">
+          <img 
+            src={logo} 
+            alt="OneTee" 
+            className="h-30 w-auto object-contain cursor-pointer hover:opacity-80 transition-opacity duration-200"
+            onClick={() => navigate('/')}
+          />
         </div>
         <div className="hidden md:flex items-center gap-8">
-          <a 
-            href="#" 
+          <button
+            onClick={() => navigate("/")}
             className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
               location.pathname === '/' || location.pathname === '' 
                 ? 'text-gray-900 border-b border-gray-900' 
@@ -21,9 +27,9 @@ const Navbar: FC = () => {
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Home
-          </a>
-          <a 
-            href="#" 
+          </button>
+          <button
+            onClick={() => navigate("/marketplace")}
             className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
               location.pathname === '/marketplace' 
                 ? 'text-gray-900 border-b border-gray-900' 
@@ -32,18 +38,18 @@ const Navbar: FC = () => {
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Marketplace
-          </a>
-          <a 
-            href="#" 
+          </button>
+          <button
+            onClick={() => navigate("/community")}
             className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
-              location.pathname === '/about' 
+              location.pathname === '/community' 
                 ? 'text-gray-900 border-b border-gray-900' 
                 : 'text-gray-600 hover:text-gray-900'
             }`}
             style={{ fontFamily: 'var(--font-sans)' }}
           >
-            About Us
-          </a>
+            Community
+          </button>
           <button
             type="button"
             aria-label="Search"
