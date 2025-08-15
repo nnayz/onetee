@@ -11,6 +11,7 @@ const AboutPage: FC = () => {
       {/* Hamburger Menu */}
       <HamburgerMenu />
       
+      
       {/* Navbar */}
       <Navbar />
       
