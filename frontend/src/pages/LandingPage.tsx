@@ -5,6 +5,7 @@ import ProductGrid from "@/components/ProductGrid";
 import CollectionShowcase from "@/components/CollectionShowcase";
 import ScrollIndicator from "@/components/ScrollIndicator";
 import HamburgerMenu from "@/components/HamburgerMenu";
+import Reviews from "@/components/Reviews";
 import Footer from "@/components/Footer";
 import landingImage from "@/assets/landing page.jpg";
 
@@ -48,6 +49,12 @@ const LandingPage: FC = () => {
         {/* Shop by Collection Section */}
         <CollectionShowcase 
           title="Shop by Collection"
+          className="mt-20"
+        />
+        
+        {/* Reviews Section */}
+        <Reviews 
+          title="What Our Customers Say"
           className="mt-20"
         />
       </div>

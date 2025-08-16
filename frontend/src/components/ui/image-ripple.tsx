@@ -224,7 +224,7 @@ function Model() {
 function useMouse() {
   const [mouse, setMouse] = React.useState({ x: 0, y: 0, pixelRatio: 0 })
 
-  const mouseMove = (e: { clientX: any; clientY: any }) => {
+  const mouseMove = (e: { clientX: number; clientY: number }) => {
     const { clientX, clientY } = e
     setMouse({
       x: clientX,
