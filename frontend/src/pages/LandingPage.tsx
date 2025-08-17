@@ -10,9 +10,7 @@ import Footer from "@/components/Footer";
 import landingImage from "@/assets/landing page.jpg";
 
 const LandingPage: FC = () => {
-  const handleAnimationComplete = () => {
-    console.log("Animation complete");
-  };
+  const handleAnimationComplete = () => {};
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white text-gray-900 overflow-hidden">

@@ -63,8 +63,8 @@ const Navbar: FC = () => {
           >
             Search
           </button>
-          <a 
-            href="#" 
+          <button
+            onClick={() => navigate('/login')}
             className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
               location.pathname === '/login' 
                 ? 'text-gray-900 border-b border-gray-900' 
@@ -73,7 +73,7 @@ const Navbar: FC = () => {
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Log In
-          </a>
+          </button>
         </div>
       </div>
     </nav>

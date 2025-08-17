@@ -1,0 +1,1 @@
+docker exec -it postgres psql -U onetee_user -d onetee_db

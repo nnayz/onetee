@@ -4,11 +4,16 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AuthAPI } from "@/lib/api/auth";
+import { CommunityAPI } from "@/lib/api/community";
 
 interface Thread {
   id: string;
   author: string;
   handle: string;
+  username?: string;
+  authorId?: string;
   content: string;
   timestamp: string;
   likes: number;
@@ -22,130 +27,87 @@ interface Thread {
 const CommunityPage: FC = () => {
   const navigate = useNavigate();
   const [newThread, setNewThread] = useState("");
+  const queryClient = useQueryClient();
 
-  const [threads, setThreads] = useState<Thread[]>([
-    {
-      id: "1",
-      author: "Sarah Chen",
-      handle: "@sarahc_design",
-      content: "Just received my OneTee collection and the quality is absolutely incredible! The fabric feels so premium and the fit is perfect. Can't wait to style these for our team photoshoot 📸 #OneTeeFamily",
-      timestamp: "2h",
-      likes: 24,
-      replies: 8,
-      reposts: 3,
-      avatar: "SC",
-      isLiked: false,
-      isReposted: false
+  const meQuery = useQuery({ queryKey: ["me"], queryFn: AuthAPI.me });
+
+  const [threads, setThreads] = useState<Thread[]>([]);
+
+  // Load posts from backend (simple list newest first)
+  const postsQuery = useQuery({
+    queryKey: ["community", "posts"],
+    queryFn: () => CommunityAPI.listPosts({ limit: 50 }),
+    onSuccess: (data) => {
+      const mapped: Thread[] = (data || []).map((p: any) => ({
+        id: p.id,
+        author: p.author?.display_name || p.author?.username || "",
+        handle: `@${p.author?.username || ""}`,
+        username: p.author?.username,
+        authorId: p.author?.id,
+        content: p.content,
+        timestamp: new Date(p.created_at).toLocaleString(),
+        likes: p.likes ?? 0,
+        replies: p.replies ?? 0,
+        reposts: p.reposts ?? 0,
+        avatar: (p.author?.username || "").slice(0, 2).toUpperCase(),
+        isLiked: false,
+        isReposted: false,
+      }));
+      setThreads(mapped);
     },
-    {
-      id: "2",
-      author: "Marcus Rivera",
-      handle: "@marcus_qa",
-      content: "Behind the scenes at OneTee HQ! Our quality assurance team just finished testing the new sustainable cotton blend. Every thread matters when you're building something that brings people together ✨",
-      timestamp: "4h",
-      likes: 45,
-      replies: 12,
-      reposts: 7,
-      avatar: "MR",
-      isLiked: false,
-      isReposted: false
+  });
+
+  const activityQuery = useQuery({
+    queryKey: ["community", "activity"],
+    queryFn: () => CommunityAPI.recentActivity(),
+    enabled: !!meQuery.data?.id,
+  });
+
+  const suggestionsQuery = useQuery({
+    queryKey: ["community", "suggestions"],
+    queryFn: () => CommunityAPI.whoToFollow(),
+    enabled: !!meQuery.data?.id,
+  });
+
+  const trendingQuery = useQuery({
+    queryKey: ["community", "trending"],
+    queryFn: () => CommunityAPI.trendingTags(),
+  });
+
+  const createPost = useMutation({
+    mutationFn: (content: string) =>
+      CommunityAPI.createPost({
+        author_id: meQuery.data?.id,
+        content,
+      }),
+    onSuccess: () => {
+      setNewThread("");
+      // Refetch to get server UUIDs (avoid temp ids)
+      queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
     },
-    {
-      id: "3",
-      author: "Alex Thompson",
-      handle: "@alex_founder",
-      content: "Thinking about community today. It's amazing how a simple t-shirt can become the foundation for shared experiences, memories, and connections. That's why we do what we do at OneTee 💫",
-      timestamp: "6h",
-      likes: 89,
-      replies: 23,
-      reposts: 15,
-      avatar: "AT",
-      isLiked: false,
-      isReposted: false
-    },
-    {
-      id: "4",
-      author: "Team Catalyst",
-      handle: "@teamcatalyst",
-      content: "Our startup just got our custom OneTee shirts and wow! The team unity vibe is real. Nothing like matching premium tees to make you feel like you can conquer the world 🚀 Thank you @onetee_official!",
-      timestamp: "8h",
-      likes: 56,
-      replies: 18,
-      reposts: 9,
-      avatar: "TC",
-      isLiked: false,
-      isReposted: false
-    },
-    {
-      id: "5",
-      author: "Emma Davis",
-      handle: "@emmad_creative",
-      content: "The minimalist design philosophy behind OneTee is everything. Sometimes the most powerful statements are made through simplicity. Less is definitely more 🤍",
-      timestamp: "12h",
-      likes: 67,
-      replies: 14,
-      reposts: 11,
-      avatar: "ED",
-      isLiked: false,
-      isReposted: false
-    },
-    {
-      id: "6",
-      author: "OneTee Official",
-      handle: "@onetee_official",
-      content: "New sustainable collection dropping next week! 🌱 Made from 100% organic cotton with water-based inks. Pre-orders start Monday. #SustainableFashion #OneTee",
-      timestamp: "1d",
-      likes: 156,
-      replies: 42,
-      reposts: 28,
-      avatar: "OT",
-      isLiked: false,
-      isReposted: false
-    }
-  ]);
+  });
+
+  const isUuid = (v: string) => /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(v);
 
   const handlePostThread = () => {
-    if (newThread.trim()) {
-      const thread: Thread = {
-        id: Date.now().toString(),
-        author: "You",
-        handle: "@you",
-        content: newThread,
-        timestamp: "now",
-        likes: 0,
-        replies: 0,
-        reposts: 0,
-        avatar: "Y",
-        isLiked: false,
-        isReposted: false
-      };
-      setThreads([thread, ...threads]);
-      setNewThread("");
-    }
+    const content = newThread.trim();
+    if (!content || !meQuery.data?.id) return;
+    // Let server create and then refetch (no local temp ids)
+    createPost.mutate(content);
   };
 
   const handleLike = (threadId: string) => {
-    setThreads(threads.map(thread => 
-      thread.id === threadId 
-        ? { 
-            ...thread, 
-            likes: thread.isLiked ? thread.likes - 1 : thread.likes + 1,
-            isLiked: !thread.isLiked
-          }
-        : thread
-    ));
+    if (!meQuery.data?.id) return;
+    if (!isUuid(threadId)) return; // avoid 422 for temp ids
+    setThreads(threads.map(t => t.id === threadId ? { ...t, likes: t.isLiked ? t.likes - 1 : t.likes + 1, isLiked: !t.isLiked } : t));
+    CommunityAPI.likePost(threadId).catch(() => setThreads(threads));
   };
 
   const handleRepost = (threadId: string) => {
-    setThreads(threads.map(thread => 
-      thread.id === threadId 
-        ? { 
-            ...thread, 
-            reposts: thread.isReposted ? thread.reposts - 1 : thread.reposts + 1,
-            isReposted: !thread.isReposted
-          }
-        : thread
-    ));
+    if (!meQuery.data?.id) return;
+    if (!isUuid(threadId)) return; // avoid 422 for temp ids
+    setThreads(threads.map(t => t.id === threadId ? { ...t, reposts: t.isReposted ? t.reposts - 1 : t.reposts + 1, isReposted: !t.isReposted } : t));
+    CommunityAPI.repostPost(threadId).catch(() => setThreads(threads));
   };
 
 
@@ -199,22 +161,16 @@ const CommunityPage: FC = () => {
               </a>
             </nav>
 
-            {/* Trending Topics */}
+            {/* Trending Topics - live */}
             <div className="mt-8">
               <h3 className="text-lg font-light text-gray-900 mb-4">Trending</h3>
               <div className="space-y-3">
-                <div className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
-                  <p className="text-sm font-light text-gray-900">#OneTeeFamily</p>
-                  <p className="text-xs text-gray-500">2,847 posts</p>
-                </div>
-                <div className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
-                  <p className="text-sm font-light text-gray-900">#SustainableFashion</p>
-                  <p className="text-xs text-gray-500">1,234 posts</p>
-                </div>
-                <div className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
-                  <p className="text-sm font-light text-gray-900">#TeamUnity</p>
-                  <p className="text-xs text-gray-500">856 posts</p>
-                </div>
+                {Array.isArray(trendingQuery.data) && trendingQuery.data.map((t: any) => (
+                  <div key={t.tag} className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
+                    <p className="text-sm font-light text-gray-900">#{t.tag}</p>
+                    <p className="text-xs text-gray-500">{t.count} posts</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -234,7 +190,7 @@ const CommunityPage: FC = () => {
           <div className="border-b border-gray-200 p-4">
             <div className="flex space-x-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 flex items-center justify-center text-sm font-light text-gray-700 flex-shrink-0">
-                Y
+                {meQuery.data?.username ? meQuery.data.username.slice(0,2).toUpperCase() : '—'}
               </div>
               <div className="flex-1">
                 <textarea
@@ -256,10 +212,10 @@ const CommunityPage: FC = () => {
                   </div>
                   <button
                     onClick={handlePostThread}
-                    disabled={!newThread.trim() || newThread.length > 280}
+                    disabled={!newThread.trim() || newThread.length > 280 || !meQuery.data?.id}
                     className="px-4 py-2 sm:px-6 bg-gray-900 text-white font-light hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 text-sm sm:text-base"
                   >
-                    Post
+                    {meQuery.data?.id ? 'Post' : 'Sign in to Post'}
                   </button>
                 </div>
               </div>
@@ -282,16 +238,23 @@ const CommunityPage: FC = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-1 sm:space-x-2">
-                      <h3 className="font-light text-gray-900 hover:underline cursor-pointer text-sm sm:text-base truncate">{thread.author}</h3>
+                      <h3
+                        onClick={() => thread.username && navigate(`/u/${thread.username}`)}
+                        className="font-light text-gray-900 hover:underline cursor-pointer text-sm sm:text-base truncate"
+                      >
+                        {thread.author}
+                      </h3>
                       <span className="text-gray-500 text-xs sm:text-sm truncate">{thread.handle}</span>
                       <span className="text-gray-400 hidden sm:inline">·</span>
                       <span className="text-gray-500 text-xs sm:text-sm">{thread.timestamp}</span>
                     </div>
-                    <p className="text-gray-900 mt-1 leading-normal text-sm sm:text-base">
+                    <p onClick={() => navigate(`/post/${thread.id}`)} className="text-gray-900 mt-1 leading-normal text-sm sm:text-base hover:underline cursor-pointer">
                       {thread.content}
                     </p>
                     <div className="flex items-center justify-between max-w-xs sm:max-w-md mt-3">
-                      <button className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 transition-colors duration-200 group">
+                      <button className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 transition-colors duration-200 group"
+                        onClick={() => navigate(`/post/${thread.id}`)}
+                      >
                         <div className="p-1 sm:p-2 group-hover:bg-blue-50">
                           <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -347,56 +310,48 @@ const CommunityPage: FC = () => {
         <div className="hidden xl:block w-80 p-6">
           <div className="sticky top-24 space-y-6">
             
-            {/* Who to Follow */}
-            <div className="bg-gray-50 p-4">
-              <h3 className="text-xl font-light text-gray-900 mb-4">Who to follow</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-light">
-                      OT
-                    </div>
-                    <div>
-                      <p className="font-light text-gray-900">OneTee Official</p>
-                      <p className="text-sm text-gray-500">@onetee_official</p>
-                    </div>
-                  </div>
-                  <button className="px-4 py-2 bg-gray-900 text-white font-light hover:bg-gray-800 transition-colors duration-200">
-                    Follow
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-light">
-                      SF
-                    </div>
-                    <div>
-                      <p className="font-light text-gray-900">Sustainable Fashion</p>
-                      <p className="text-sm text-gray-500">@sustainablefashion</p>
-                    </div>
-                  </div>
-                  <button className="px-4 py-2 bg-gray-900 text-white font-light hover:bg-gray-800 transition-colors duration-200">
-                    Follow
-                  </button>
-                </div>
-              </div>
-            </div>
+            
 
-            {/* Recent Activity */}
-            <div className="bg-gray-50 p-4">
-              <h3 className="text-xl font-light text-gray-900 mb-4">Recent Activity</h3>
-              <div className="space-y-3 text-sm">
-                <p className="text-gray-600">
-                  <span className="font-light">Sarah Chen</span> liked your post about sustainable fashion
-                </p>
-                <p className="text-gray-600">
-                  <span className="font-light">Marcus Rivera</span> started following you
-                </p>
-                <p className="text-gray-600">
-                  <span className="font-light">OneTee Official</span> mentioned you in a post
-                </p>
+            {/* Who to Follow - live */}
+            {meQuery.data?.id && (
+              <div className="bg-gray-50 p-4">
+                <h3 className="text-xl font-light text-gray-900 mb-4">Who to follow</h3>
+                <div className="space-y-3">
+                  {(suggestionsQuery.data || []).map((u: any) => (
+                    <div key={u.id} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-gray-700 font-light">
+                          {(u.username || '').slice(0,2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-light text-gray-900">{u.display_name || u.username}</p>
+                          <p className="text-sm text-gray-500">@{u.username}</p>
+                        </div>
+                      </div>
+                      <button className="px-4 py-2 bg-gray-900 text-white font-light hover:bg-gray-800 transition-colors duration-200"
+                        onClick={() => CommunityAPI.followUser(u.id).then(() => suggestionsQuery.refetch())}
+                      >
+                        Follow
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Recent Activity - live */}
+            {meQuery.data?.id && (
+              <div className="bg-gray-50 p-4">
+                <h3 className="text-xl font-light text-gray-900 mb-4">Recent Activity</h3>
+                <div className="space-y-3 text-sm">
+                  {(activityQuery.data || []).map((n: any) => (
+                    <p key={n.id} className="text-gray-600">
+                      <span className="font-light">{n.actor?.display_name || n.actor?.username}</span> {n.type}{n.post_id ? ' your post' : ''}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

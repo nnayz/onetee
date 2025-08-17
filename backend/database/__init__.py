@@ -12,7 +12,19 @@ def get_database_url() -> str:
     """
     Get the database URL from the environment variables.
     """
-    return f"postgresql+psycopg://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST')}:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}"
+    user = os.getenv('POSTGRES_USER')
+    pwd = os.getenv('POSTGRES_PASSWORD')
+    host = os.getenv('POSTGRES_HOST') or '127.0.0.1'
+    port = os.getenv('POSTGRES_PORT') or '5432'
+    db = os.getenv('POSTGRES_DB')
+    missing = [k for k, v in [
+        ('POSTGRES_USER', user),
+        ('POSTGRES_PASSWORD', pwd),
+        ('POSTGRES_DB', db),
+    ] if not v]
+    if missing:
+        raise RuntimeError(f"Missing required DB env vars: {', '.join(missing)}")
+    return f"postgresql+psycopg://{user}:{pwd}@{host}:{port}/{db}"
 
 engine = create_engine(get_database_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -193,11 +193,11 @@ const MarketplacePage: FC = () => {
       </div>
 
       {/* Categories Navigation */}
-      <div className="border-b border-gray-200 sticky top-16 bg-white z-40">
+      <div className="border-b border-gray-200 sticky top-16 bg-white/95 backdrop-blur-sm z-40">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="py-4">
             <div className="flex items-center justify-between">
-              <div className="flex space-x-8 overflow-x-auto pb-2">
+              <div className="flex space-x-8 overflow-x-auto pb-2 scrollbar-hide">
                 {categories.map((category) => (
                   <button
                     key={category.id}
@@ -218,7 +218,7 @@ const MarketplacePage: FC = () => {
                 <span className="text-gray-500 font-light tracking-wide">
                   {filteredProducts.length} PRODUCT{filteredProducts.length !== 1 ? 'S' : ''}
                 </span>
-                <div className="h-4 w-px bg-gray-300"></div>
+                <div className="h-4 w-px bg-gray-200"></div>
                 <button className="text-gray-600 hover:text-gray-900 transition-colors duration-200 font-light tracking-wide">
                   FILTER
                 </button>
@@ -226,7 +226,7 @@ const MarketplacePage: FC = () => {
             </div>
             
             {/* Mobile product count and filter */}
-            <div className="flex md:hidden items-center justify-between mt-3 pt-3 border-t border-gray-100">
+            <div className="flex md:hidden items-center justify-between mt-3 pt-3 border-t border-gray-200">
               <span className="text-gray-500 font-light tracking-wide text-sm">
                 {filteredProducts.length} PRODUCT{filteredProducts.length !== 1 ? 'S' : ''}
               </span>
@@ -240,7 +240,7 @@ const MarketplacePage: FC = () => {
 
       {/* Products Grid */}
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
           {filteredProducts.map((product, index) => (
             <motion.div
               key={product.id}
@@ -251,15 +251,15 @@ const MarketplacePage: FC = () => {
               onClick={() => navigate(`/product/${product.id}`)}
             >
               {/* Product Image */}
-              <div className="aspect-[3/4] bg-gray-100 mb-4 relative overflow-hidden">
-                <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400 font-light text-sm">
+              <div className="aspect-[3/4] bg-gray-50 mb-4 relative overflow-hidden border border-gray-100">
+                <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center text-gray-400 font-light text-sm">
                   {product.name}
                 </div>
                 
                 {/* Minimal badges */}
                 {product.isNew && (
                   <div className="absolute top-3 left-3">
-                    <span className="bg-black text-white px-2 py-1 text-xs font-medium tracking-wider">
+                    <span className="bg-black text-white px-2 py-1 text-xs font-light tracking-wider">
                       NEW
                     </span>
                   </div>
@@ -267,7 +267,7 @@ const MarketplacePage: FC = () => {
                 
                 {product.isSale && (
                   <div className="absolute top-3 left-3">
-                    <span className="bg-red-600 text-white px-2 py-1 text-xs font-medium tracking-wider">
+                    <span className="bg-red-600 text-white px-2 py-1 text-xs font-light tracking-wider">
                       SALE
                     </span>
                   </div>
@@ -275,7 +275,7 @@ const MarketplacePage: FC = () => {
 
                 {/* Add button on hover */}
                 <div className="absolute inset-x-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <button className="w-full bg-white border border-gray-400 text-gray-900 py-2 text-sm font-light tracking-wider hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors duration-200">
+                  <button className="w-full bg-white border border-gray-200 text-gray-900 py-2 text-sm font-light tracking-wider hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors duration-200">
                     ADD
                   </button>
                 </div>
@@ -312,7 +312,7 @@ const MarketplacePage: FC = () => {
         
         {/* View More */}
         <div className="text-center mt-16">
-          <button className="px-8 py-3 border border-gray-300 text-gray-900 font-light text-sm tracking-wider hover:border-gray-900 transition-colors duration-200">
+          <button className="px-8 py-3 border border-gray-200 text-gray-900 font-light text-sm tracking-wider hover:border-gray-900 transition-colors duration-200">
             VIEW MORE
           </button>
         </div>
