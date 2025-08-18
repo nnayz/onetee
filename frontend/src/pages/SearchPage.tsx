@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import HamburgerMenu from '@/components/HamburgerMenu';
 import Footer from '@/components/Footer';
+import { ShopAPI } from '@/lib/api/shop';
 
 const SearchPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -10,85 +11,27 @@ const SearchPage = () => {
   const [selectedSort, setSelectedSort] = useState('RELEVANCE');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // Mock search results
-  const searchResults = [
-    {
-      id: 1,
-      name: "ESSENTIAL T-SHIRT",
-      price: 1299,
-      originalPrice: null,
-      category: "MEN",
-      colors: 8,
-      image: "/api/placeholder/300/400",
-      badge: "NEW",
-      isNew: true
-    },
-    {
-      id: 2,
-      name: "COTTON BLEND HOODIE",
-      price: 2999,
-      originalPrice: 3999,
-      category: "WOMAN",
-      colors: 4,
-      image: "/api/placeholder/300/400",
-      badge: "SALE",
-      isNew: false
-    },
-    {
-      id: 3,
-      name: "MINIMALIST JACKET",
-      price: 4999,
-      originalPrice: null,
-      category: "MEN",
-      colors: 3,
-      image: "/api/placeholder/300/400",
-      badge: null,
-      isNew: false
-    },
-    {
-      id: 4,
-      name: "RELAXED FIT JEANS",
-      price: 2499,
-      originalPrice: null,
-      category: "WOMAN",
-      colors: 5,
-      image: "/api/placeholder/300/400",
-      badge: "NEW",
-      isNew: true
-    },
-    {
-      id: 5,
-      name: "OVERSIZED BLAZER",
-      price: 5999,
-      originalPrice: 7999,
-      category: "WOMAN",
-      colors: 2,
-      image: "/api/placeholder/300/400",
-      badge: "SALE",
-      isNew: false
-    },
-    {
-      id: 6,
-      name: "BASIC POLO SHIRT",
-      price: 1799,
-      originalPrice: null,
-      category: "MEN",
-      colors: 6,
-      image: "/api/placeholder/300/400",
-      badge: null,
-      isNew: false
-    }
-  ];
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    ShopAPI.listProducts().then((data) => {
+      if (!cancelled) setResults(data);
+    }).finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true };
+  }, []);
 
-  const categories = ['ALL', 'WOMAN', 'MEN', 'ACCESSORIES'];
+  const categories = ['ALL', 'WOMAN', 'MEN'];
   const sortOptions = ['RELEVANCE', 'PRICE LOW TO HIGH', 'PRICE HIGH TO LOW', 'NEWEST FIRST'];
 
-  const filteredResults = searchResults.filter(item => {
-    const matchesCategory = selectedCategory === 'ALL' || item.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredResults = useMemo(() => {
+    return results.filter((item: any) => {
+      const matchesCategory = selectedCategory === 'ALL' || (selectedCategory === 'MEN' ? item.gender === 'men' : item.gender === 'women');
+      const matchesSearch = searchQuery === '' || (item.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [results, selectedCategory, searchQuery]);
 
   return (
     <div className="min-h-screen bg-white">

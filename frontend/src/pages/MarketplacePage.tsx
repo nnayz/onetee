@@ -1,10 +1,11 @@
 import type { FC } from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import Footer from "@/components/Footer";
+import { ShopAPI } from "@/lib/api/shop";
 
 interface Product {
   id: string;
@@ -27,144 +28,32 @@ interface Product {
 const MarketplacePage: FC = () => {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState("ALL");
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const categories = [
     { id: "ALL", name: "VIEW ALL" },
     { id: "WOMAN", name: "WOMAN" },
     { id: "MAN", name: "MAN" },
-    { id: "KIDS", name: "KIDS" },
-    { id: "NEW", name: "NEW IN" },
-    { id: "SALE", name: "SALE" }
   ];
 
-  const products: Product[] = [
-    {
-      id: "1",
-      name: "Essential Crew Neck",
-      price: 45,
-      image: "/api/placeholder/400/500",
-      category: "WOMAN",
-      description: "Soft, comfortable crew neck perfect for everyday wear",
-      rating: 4.8,
-      reviews: 124,
-      isNew: true,
-      badge: "Bestseller",
-      colors: ["#000000", "#FFFFFF", "#8B5A3C"],
-      sizes: ["XS", "S", "M", "L", "XL"]
-    },
-    {
-      id: "2",
-      name: "Organic Cotton Tee",
-      price: 35,
-      image: "/api/placeholder/400/500",
-      category: "MAN",
-      description: "100% organic cotton with sustainable production",
-      rating: 4.6,
-      reviews: 89,
-      badge: "Eco-Friendly",
-      colors: ["#2D3748", "#E2E8F0", "#48BB78"],
-      sizes: ["S", "M", "L", "XL", "XXL"]
-    },
-    {
-      id: "3",
-      name: "Vintage Wash T-Shirt",
-      price: 28,
-      originalPrice: 40,
-      image: "/api/placeholder/400/500",
-      category: "WOMAN",
-      description: "Pre-washed vintage style with relaxed fit",
-      rating: 4.4,
-      reviews: 67,
-      isSale: true,
-      colors: ["#4A5568", "#ED8936"],
-      sizes: ["XS", "S", "M", "L"]
-    },
-    {
-      id: "4",
-      name: "Kids Rainbow Tee",
-      price: 25,
-      image: "/api/placeholder/400/500",
-      category: "KIDS",
-      description: "Bright, fun design that kids absolutely love",
-      rating: 4.9,
-      reviews: 156,
-      isNew: true,
-      colors: ["#FF6B6B", "#4ECDC4", "#45B7D1"],
-      sizes: ["2T", "3T", "4T", "5T", "6T"]
-    },
-    {
-      id: "5",
-      name: "Premium Cotton Blend",
-      price: 55,
-      image: "/api/placeholder/400/500",
-      category: "MAN",
-      description: "Luxury cotton blend with superior durability",
-      rating: 4.7,
-      reviews: 203,
-      badge: "Premium",
-      colors: ["#1A202C", "#2D3748", "#4A5568"],
-      sizes: ["S", "M", "L", "XL", "XXL"]
-    },
-    {
-      id: "6",
-      name: "Sustainable Hemp Tee",
-      price: 42,
-      image: "/api/placeholder/400/500",
-      category: "WOMAN",
-      description: "Eco-conscious hemp fiber with natural feel",
-      rating: 4.5,
-      reviews: 78,
-      badge: "Sustainable",
-      colors: ["#68D391", "#F7FAFC", "#E2E8F0"],
-      sizes: ["XS", "S", "M", "L", "XL"]
-    },
-    {
-      id: "7",
-      name: "Team Unity Shirt",
-      price: 38,
-      image: "/api/placeholder/400/500",
-      category: "MAN",
-      description: "Perfect for team building and group events",
-      rating: 4.6,
-      reviews: 92,
-      colors: ["#3182CE", "#FFFFFF"],
-      sizes: ["S", "M", "L", "XL", "XXL"]
-    },
-    {
-      id: "8",
-      name: "Minimalist Design Tee",
-      price: 32,
-      originalPrice: 45,
-      image: "/api/placeholder/400/500",
-      category: "WOMAN",
-      description: "Clean, simple design for the modern minimalist",
-      rating: 4.3,
-      reviews: 45,
-      isSale: true,
-      colors: ["#F7FAFC", "#E2E8F0", "#CBD5E0"],
-      sizes: ["XS", "S", "M", "L"]
-    },
-    {
-      id: "9",
-      name: "Kids Adventure Tee",
-      price: 22,
-      image: "/api/placeholder/400/500",
-      category: "KIDS",
-      description: "Durable design for active little adventurers",
-      rating: 4.8,
-      reviews: 134,
-      colors: ["#F56565", "#4299E1", "#48BB78"],
-      sizes: ["2T", "3T", "4T", "5T", "6T"]
-    }
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    ShopAPI.listProducts().then((data) => {
+      if (!cancelled) setProducts(data);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true };
+  }, []);
 
-  const filteredProducts = selectedCategory === "ALL" 
-    ? products 
-    : selectedCategory === "NEW"
-    ? products.filter(p => p.isNew)
-    : selectedCategory === "SALE"
-    ? products.filter(p => p.isSale)
-    : products.filter(p => p.category === selectedCategory);
+  const filteredProducts = useMemo(() => {
+    if (selectedCategory === "ALL") return products;
+    if (selectedCategory === "WOMAN") return products.filter((p: any) => p.gender === "women");
+    if (selectedCategory === "MAN") return products.filter((p: any) => p.gender === "men");
+    return products;
+  }, [products, selectedCategory]);
 
 
 
@@ -297,13 +186,8 @@ const MarketplacePage: FC = () => {
                 {/* Price */}
                 <div className="flex items-center space-x-2 pt-1">
                   <span className="text-sm font-light text-gray-900">
-                    ₹ {product.price}.00
+                    ₹ {((product.price_cents || 0) / 100).toLocaleString()}
                   </span>
-                  {product.originalPrice && (
-                    <span className="text-sm text-gray-500 line-through">
-                      ₹ {product.originalPrice}.00
-                    </span>
-                  )}
                 </div>
               </div>
             </motion.div>

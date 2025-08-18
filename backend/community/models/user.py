@@ -23,6 +23,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
+    # Becomes true once the user has at least one delivered order
+    is_verified = Column(Boolean, default=False, nullable=False)
     display_name = Column(String(80), nullable=True)
     bio = Column(Text, nullable=True)
     avatar_url = Column(String(512), nullable=True)

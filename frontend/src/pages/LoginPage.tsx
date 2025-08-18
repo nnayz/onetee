@@ -34,7 +34,13 @@ export default function LoginPage() {
       setMode("login");
       await loginMutation.mutateAsync({ username_or_email: reg.username, password: reg.password });
     },
-    onError: (e: any) => setError(e?.detail ?? "Signup failed"),
+    onError: (e: any) => {
+      if (Array.isArray(e?.detail)) {
+        setError(e.detail.map((d: any) => d?.msg || "Invalid input").join("\n"));
+      } else {
+        setError(e?.detail ?? "Signup failed");
+      }
+    },
   });
 
   return (
@@ -71,6 +77,16 @@ export default function LoginPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              // simple client-side validation to avoid 422s
+              const errs: string[] = [];
+              if ((reg.username || "").trim().length < 3) errs.push("Username must be at least 3 characters");
+              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email || "")) errs.push("Enter a valid email address");
+              if ((reg.password || "").length < 8) errs.push("Password must be at least 8 characters");
+              if (errs.length) {
+                setError(errs.join("\n"));
+                return;
+              }
+              setError(null);
               signupMutation.mutate();
             }}
             className="space-y-6"

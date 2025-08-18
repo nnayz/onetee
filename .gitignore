@@ -20,3 +20,8 @@ backend/.venv/
 .cursorignore.development.local
 .cursorignore.test.local
 .cursorignore.production.local
+
+
+# docker volumes
+*/minio_data
+*/postgres_data

@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import ScrollAnimatedElement from "./ScrollAnimatedElement";
-import mockProductImg from "@/assets/mock_product_img.jpg";
+import { ShopAPI } from "@/lib/api/shop";
 
 interface ProductGridProps {
   title: string;
@@ -19,15 +19,14 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   products,
   className = ""
 }) => {
-  // Mock products using the available image
-  const defaultProducts = [
-    { id: 1, name: "PREMIUM TEE", price: "₹ 2,950.00", image: mockProductImg },
-    { id: 2, name: "TEAM SPIRIT TEE", price: "₹ 3,200.00", image: mockProductImg },
-    { id: 3, name: "UNITY SHIRT", price: "₹ 2,750.00", image: mockProductImg },
-    { id: 4, name: "CLASSIC TEE", price: "₹ 2,850.00", image: mockProductImg },
-  ];
-
-  const displayProducts = products || defaultProducts;
+  const [fetched, setFetched] = useState<any[]>([]);
+  useEffect(() => {
+    if (!products) {
+      ShopAPI.listProducts({ limit: 8 }).then((data) => setFetched(data));
+    }
+  }, [products]);
+  const displayProducts: Array<{ id: string | number; name: string; price: string; image: string }> = products ||
+    fetched.map((p: any) => ({ id: p.id, name: p.name, price: `₹ ${(p.price_cents/100).toLocaleString()}`, image: p.images?.[0]?.url || "/vite.svg" }));
 
   return (
     <div className={`py-20 ${className}`}>

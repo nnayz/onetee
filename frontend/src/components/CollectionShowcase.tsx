@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import ScrollAnimatedElement from "./ScrollAnimatedElement";
-import mockProductImg from "@/assets/mock_product_img.jpg";
+import { ShopAPI } from "@/lib/api/shop";
 
 interface Collection {
   id: number;
@@ -21,14 +21,13 @@ const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
   collections,
   className = ""
 }) => {
-  // Mock collections using the available image
-  const defaultCollections = [
-    { id: 1, name: "TEAM ESSENTIALS", image: mockProductImg, itemCount: "12 ITEMS" },
-    { id: 2, name: "PREMIUM COLLECTION", image: mockProductImg, itemCount: "8 ITEMS" },
-    { id: 3, name: "CASUAL WEAR", image: mockProductImg, itemCount: "15 ITEMS" },
-  ];
-
-  const displayCollections = collections || defaultCollections;
+  const [tags, setTags] = useState<any[]>([]);
+  useEffect(() => {
+    if (!collections) {
+      ShopAPI.listTags().then(setTags).catch(() => setTags([]));
+    }
+  }, [collections]);
+  const displayCollections = collections || tags.map((t) => ({ id: t.id, name: (t.name || '').toUpperCase(), image: "/vite.svg", itemCount: "" }));
 
   return (
     <div className={`py-20 ${className}`}>
@@ -83,9 +82,11 @@ const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
                     <h3 className="text-xl font-light tracking-wider mb-1" style={{ fontFamily: 'var(--font-sans)' }}>
                       {collection.name}
                     </h3>
-                    <p className="text-sm text-white/80 tracking-widest font-extralight" style={{ fontFamily: 'var(--font-sans)' }}>
-                      {collection.itemCount}
-                    </p>
+                    {collection.itemCount && (
+                      <p className="text-sm text-white/80 tracking-widest font-extralight" style={{ fontFamily: 'var(--font-sans)' }}>
+                        {collection.itemCount}
+                      </p>
+                    )}
                   </div>
                   
                   {/* View Collection Button */}
