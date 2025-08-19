@@ -11,7 +11,13 @@ COOKIE_NAME = "access_token"
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    token = request.cookies.get(COOKIE_NAME)
+    # Prefer Authorization header; fallback to cookie
+    auth_header = request.headers.get("Authorization")
+    token = None
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        token = request.cookies.get(COOKIE_NAME)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -26,7 +32,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
-    token = request.cookies.get(COOKIE_NAME)
+    auth_header = request.headers.get("Authorization")
+    token = None
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        token = request.cookies.get(COOKIE_NAME)
     if not token:
         return None
     try:

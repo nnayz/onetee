@@ -40,7 +40,6 @@ class MediaItemOut(ORMModel):
 
 
 class PostCreate(BaseModel):
-    author_id: UUID
     content: str
     in_reply_to_id: Optional[UUID] = None
     media_keys: Optional[List[str]] = None  # object keys already uploaded
@@ -71,8 +70,6 @@ class PostWithAuthorOut(PostOut):
 
 class ProfileCounts(BaseModel):
     posts: int
-    followers: int
-    following: int
 
 
 class ProfileOut(ORMModel):
@@ -83,7 +80,6 @@ class ProfileOut(ORMModel):
     avatar_url: Optional[str] = None
     created_at: datetime
     counts: ProfileCounts
-    is_following: bool = False
 
 
 class ReplyCreate(BaseModel):

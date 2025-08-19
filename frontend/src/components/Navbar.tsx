@@ -1,10 +1,13 @@
 import type { FC } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import logo from "@/assets/logo_png.png";
+import { useQuery } from "@tanstack/react-query";
+import { AuthAPI } from "@/lib/api/auth";
 
 const Navbar: FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const meQuery = useQuery({ queryKey: ["auth","me"], queryFn: AuthAPI.me, retry: false });
   return (
     <nav className="fixed top-0 inset-x-0 z-50 bg-inherit border-none border-gray-200 pt-5">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
@@ -63,17 +66,31 @@ const Navbar: FC = () => {
           >
             Search
           </button>
-          <button
-            onClick={() => navigate('/login')}
-            className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
-              location.pathname === '/login' 
-                ? 'text-gray-900 border-b border-gray-900' 
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Log In
-          </button>
+          {meQuery.data ? (
+            <button
+              onClick={() => navigate(`/u/${meQuery.data.username}`)}
+              className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
+                location.pathname.startsWith('/u/') 
+                  ? 'text-gray-900 border-b border-gray-900' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              {meQuery.data.username}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className={`text-sm font-light tracking-wide relative pb-1 transition-colors duration-200 ${
+                location.pathname === '/login' 
+                  ? 'text-gray-900 border-b border-gray-900' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              Log In
+            </button>
+          )}
         </div>
       </div>
     </nav>

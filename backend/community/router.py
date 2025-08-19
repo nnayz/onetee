@@ -31,9 +31,9 @@ service = CommunityService()
 # Posts
 @router.post("/posts", response_model=PostOut)
 def create_post(payload: PostCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	# Enforce daily post limit for non-verified users
+	# Enforce daily post limit for non-verified users (top-level posts only)
 	from datetime import datetime, timedelta
-	if not getattr(user, "is_verified", False):
+	if not getattr(user, "is_verified", False) and payload.in_reply_to_id is None:
 		start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 		end = start + timedelta(days=1)
 		from sqlalchemy import select, func
@@ -42,9 +42,10 @@ def create_post(payload: PostCreate, db: Session = Depends(get_db), user=Depends
 				Post.author_id == user.id,
 				Post.created_at >= start,
 				Post.created_at < end,
+				Post.in_reply_to_id.is_(None),
 			)
 		).scalar_one() or 0
-		if count >= 5:
+		if count >= 10:
 			raise HTTPException(status_code=403, detail="Daily post limit reached. Verify your account to post without limits.")
 	if not payload.content or not payload.content.strip():
 		raise HTTPException(status_code=400, detail="Content required")
@@ -131,18 +132,7 @@ def bookmark_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get
 	return {"success": True}
 
 
-@router.post("/users/{user_id}/follow", response_model=ActionOut)
-def follow_user(user_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	service.follow_user(db, follower_id=user.id, following_id=user_id)
-	return {"success": True}
-
-
-@router.post("/users/{user_id}/unfollow", response_model=ActionOut)
-def unfollow_user(user_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	from sqlalchemy import delete
-	db.execute(delete(Follow).where(Follow.follower_id == user.id, Follow.following_id == user_id))
-	db.commit()
-	return {"success": True}
+# Follow/Unfollow removed from product requirements
 
 
 @router.get("/profiles/{username}", response_model=ProfileOut)
@@ -152,9 +142,6 @@ def get_profile(username: str, db: Session = Depends(get_db), user=Depends(get_c
 	if not subject:
 		raise HTTPException(status_code=404, detail="User not found")
 	posts_count = db.execute(select(func.count(Post.id)).where(Post.author_id == subject.id)).scalar_one() or 0
-	followers_count = db.execute(select(func.count(Follow.id)).where(Follow.following_id == subject.id)).scalar_one() or 0
-	following_count = db.execute(select(func.count(Follow.id)).where(Follow.follower_id == subject.id)).scalar_one() or 0
-	is_following = db.execute(select(Follow).where(Follow.follower_id == user.id, Follow.following_id == subject.id)).scalar_one_or_none() is not None
 	return {
 		"id": subject.id,
 		"username": subject.username,
@@ -162,8 +149,7 @@ def get_profile(username: str, db: Session = Depends(get_db), user=Depends(get_c
 		"bio": subject.bio,
 		"avatar_url": subject.avatar_url,
 		"created_at": subject.created_at,
-		"counts": {"posts": posts_count, "followers": followers_count, "following": following_count},
-		"is_following": is_following,
+		"counts": {"posts": posts_count},
 	}
 
 
@@ -221,21 +207,9 @@ def profile_posts(username: str, limit: int = 50, offset: int = 0, db: Session =
 
 @router.post("/posts/{post_id}/reply", response_model=PostOut)
 def create_reply(post_id: UUID, payload: ReplyCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	# Replies count towards daily limit
+	# Replies are not rate-limited for non-verified users
 	from datetime import datetime, timedelta
-	if not getattr(user, "is_verified", False):
-		start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-		end = start + timedelta(days=1)
-		from sqlalchemy import select, func
-		count = db.execute(
-			select(func.count(Post.id)).where(
-				Post.author_id == user.id,
-				Post.created_at >= start,
-				Post.created_at < end,
-			)
-		).scalar_one() or 0
-		if count >= 5:
-			raise HTTPException(status_code=403, detail="Daily post limit reached. Verify your account to post without limits.")
+	# no daily limit check here
 	if not payload.content or not payload.content.strip():
 		raise HTTPException(status_code=400, detail="Content required")
 	parent = db.get(Post, post_id)
@@ -312,41 +286,7 @@ def attach_media(req: AttachMediaRequest, db: Session = Depends(get_db)):
 
 
 
-@router.get("/suggestions/who-to-follow")
-def who_to_follow(db: Session = Depends(get_db), user=Depends(get_current_user), limit: int = 5):
-	from sqlalchemy import select, func
-	# Users not equal to current and not already followed, ordered by followers count desc
-	followers_count_sq = (
-		select(Follow.following_id.label("uid"), func.count(Follow.id).label("followers"))
-		.group_by(Follow.following_id)
-		.subquery()
-	)
-
-	# ids current user already follows
-	already = set(
-		uid for (uid,) in db.execute(select(Follow.following_id).where(Follow.follower_id == user.id)).all()
-	)
-	stmt = (
-		select(User, func.coalesce(followers_count_sq.c.followers, 0).label("followers"))
-		.outerjoin(followers_count_sq, User.id == followers_count_sq.c.uid)
-		.where(User.id != user.id)
-		.order_by(func.coalesce(followers_count_sq.c.followers, 0).desc(), User.created_at.desc())
-		.limit(50)
-	)
-	rows = db.execute(stmt).all()
-	suggestions = []
-	for u, followers in rows:
-		if u.id in already:
-			continue
-		suggestions.append({
-			"id": u.id,
-			"username": u.username,
-			"display_name": u.display_name,
-			"followers": int(followers or 0),
-		})
-		if len(suggestions) >= limit:
-			break
-	return suggestions
+# "Who to follow" removed from product requirements
 
 
 @router.get("/trending/tags")

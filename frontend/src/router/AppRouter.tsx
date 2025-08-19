@@ -21,7 +21,7 @@ const AppRouter = () => {
         />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/about" element={<AboutPage />} />
-        <Route path="/community" element={<ProtectedRoute><CommunityPage /></ProtectedRoute>} />
+        <Route path="/community" element={<CommunityPage />} />
         <Route path="/u/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/post/:id" element={<ThreadPage />} />
         <Route path="/marketplace" element={<MarketplacePage />} />

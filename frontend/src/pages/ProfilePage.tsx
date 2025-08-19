@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import { CommunityAPI } from "@/lib/api/community";
 import { AuthAPI } from "@/lib/api/auth";
@@ -18,14 +18,7 @@ export default function ProfilePage() {
     enabled: !!username,
   });
 
-  const followMutation = useMutation({
-    mutationFn: async () => CommunityAPI.followUser((profileQuery.data as any).id),
-    onSuccess: () => profileQuery.refetch(),
-  });
-  const unfollowMutation = useMutation({
-    mutationFn: async () => CommunityAPI.unfollowUser((profileQuery.data as any).id),
-    onSuccess: () => profileQuery.refetch(),
-  });
+  // Follow/Unfollow removed
 
   return (
     <div className="min-h-screen bg-white">
@@ -38,22 +31,7 @@ export default function ProfilePage() {
             <p className="text-gray-700 mt-4">{profileQuery.data.bio}</p>
             <div className="flex gap-6 mt-4 text-sm text-gray-600">
               <span>{profileQuery.data.counts.posts} Posts</span>
-              <span>{profileQuery.data.counts.followers} Followers</span>
-              <span>{profileQuery.data.counts.following} Following</span>
             </div>
-            {me.data?.id && me.data.username !== profileQuery.data.username && (
-              <div className="mt-4">
-                {profileQuery.data.is_following ? (
-                  <button onClick={() => unfollowMutation.mutate()} className="px-6 py-2 border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white transition-colors font-light">
-                    Following
-                  </button>
-                ) : (
-                  <button onClick={() => followMutation.mutate()} className="px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 font-light">
-                    Follow
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         )}
         <div className="space-y-6">

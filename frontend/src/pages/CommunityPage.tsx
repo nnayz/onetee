@@ -27,6 +27,7 @@ interface Thread {
 const CommunityPage: FC = () => {
   const navigate = useNavigate();
   const [newThread, setNewThread] = useState("");
+  const [postError, setPostError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: AuthAPI.me });
@@ -63,11 +64,7 @@ const CommunityPage: FC = () => {
     enabled: !!meQuery.data?.id,
   });
 
-  const suggestionsQuery = useQuery({
-    queryKey: ["community", "suggestions"],
-    queryFn: () => CommunityAPI.whoToFollow(),
-    enabled: !!meQuery.data?.id,
-  });
+  // Who to follow removed
 
   const trendingQuery = useQuery({
     queryKey: ["community", "trending"],
@@ -77,14 +74,18 @@ const CommunityPage: FC = () => {
   const createPost = useMutation({
     mutationFn: (content: string) =>
       CommunityAPI.createPost({
-        author_id: meQuery.data?.id,
         content,
       }),
     onSuccess: () => {
       setNewThread("");
+      setPostError(null);
       // Refetch to get server UUIDs (avoid temp ids)
       queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
     },
+    onError: (e: any) => {
+      const message = e?.detail || e?.message || "Unable to post right now";
+      setPostError(message);
+    }
   });
 
   const isUuid = (v: string) => /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(v);
@@ -218,6 +219,9 @@ const CommunityPage: FC = () => {
                     {meQuery.data?.id ? 'Post' : 'Sign in to Post'}
                   </button>
                 </div>
+                {postError && (
+                  <p className="mt-2 text-sm text-red-600">{postError}</p>
+                )}
               </div>
             </div>
           </div>
@@ -312,32 +316,7 @@ const CommunityPage: FC = () => {
             
             
 
-            {/* Who to Follow - live */}
-            {meQuery.data?.id && (
-              <div className="bg-gray-50 p-4">
-                <h3 className="text-xl font-light text-gray-900 mb-4">Who to follow</h3>
-                <div className="space-y-3">
-                  {(suggestionsQuery.data || []).map((u: any) => (
-                    <div key={u.id} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-gray-700 font-light">
-                          {(u.username || '').slice(0,2).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-light text-gray-900">{u.display_name || u.username}</p>
-                          <p className="text-sm text-gray-500">@{u.username}</p>
-                        </div>
-                      </div>
-                      <button className="px-4 py-2 bg-gray-900 text-white font-light hover:bg-gray-800 transition-colors duration-200"
-                        onClick={() => CommunityAPI.followUser(u.id).then(() => suggestionsQuery.refetch())}
-                      >
-                        Follow
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Who to Follow removed */}
 
             {/* Recent Activity - live */}
             {meQuery.data?.id && (
