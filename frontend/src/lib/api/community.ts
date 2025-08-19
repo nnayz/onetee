@@ -17,6 +17,7 @@ export const CommunityAPI = {
   likePost: (postId: string) => api.post(`/community/posts/${postId}/like`).then((r) => r.data),
   repostPost: (postId: string) => api.post(`/community/posts/${postId}/repost`).then((r) => r.data),
   bookmarkPost: (postId: string) => api.post(`/community/posts/${postId}/bookmark`).then((r) => r.data),
+  deletePost: (postId: string) => api.delete(`/community/posts/${postId}`).then((r) => r.data as { success: boolean }),
   getProfile: (username: string) => api.get(`/community/profiles/${username}`).then((r) => r.data),
   getProfilePosts: (username: string, params?: { limit?: number; offset?: number }) => api.get(`/community/profiles/${username}/posts`, { params }).then((r) => r.data),
   replyToPost: (postId: string, content: string) => api.post(`/community/posts/${postId}/reply`, { content }).then((r) => r.data),

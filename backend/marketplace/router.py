@@ -40,6 +40,30 @@ def list_products(gender: str | None = None, tag: str | None = None, limit: int 
     return result
 
 
+@router.get("/products/search", response_model=List[ProductOut])
+def search_products(q: str, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+    products = service.search_products(db, query=q, limit=limit, offset=offset)
+    result: list[dict] = []
+    for p in products:
+        tag_names = [link.tag.name for link in p.tags]
+        result.append({
+            "id": p.id,
+            "sku": p.sku,
+            "name": p.name,
+            "description": p.description,
+            "gender": p.gender,
+            "price_cents": p.price_cents,
+            "currency": p.currency,
+            "is_active": p.is_active,
+            "created_at": p.created_at,
+            "updated_at": p.updated_at,
+            "images": p.images,
+            "variants": p.variants,
+            "tag_names": tag_names,
+        })
+    return result
+
+
 @router.get("/products/{product_id}", response_model=ProductOut)
 def get_product(product_id: UUID, db: Session = Depends(get_db)):
     p = service.get_product(db, product_id=product_id)
@@ -62,10 +86,7 @@ def get_product(product_id: UUID, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/admin/tags", response_model=TagOut)
-def create_tag(payload: TagCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
-    tag = service.create_tag(db, name=payload.name, description=payload.description)
-    return tag
+# Admin endpoints moved to a dedicated admin router
 
 
 @router.get("/tags", response_model=List[TagOut])
@@ -73,42 +94,10 @@ def list_tags(db: Session = Depends(get_db)):
     return service.list_tags(db)
 
 
-@router.post("/admin/products", response_model=ProductOut)
-def create_product(payload: ProductCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
-    p = service.create_product(
-        db,
-        sku=payload.sku,
-        name=payload.name,
-        description=payload.description,
-        gender=payload.gender,
-        price_cents=payload.price_cents,
-        currency=payload.currency,
-        image_urls=payload.image_urls,
-        sizes=payload.sizes,
-        colors=payload.colors,
-        tags=payload.tags,
-    )
-    return {
-        "id": p.id,
-        "sku": p.sku,
-        "name": p.name,
-        "description": p.description,
-        "gender": p.gender,
-        "price_cents": p.price_cents,
-        "currency": p.currency,
-        "is_active": p.is_active,
-        "created_at": p.created_at,
-        "updated_at": p.updated_at,
-        "images": p.images,
-        "variants": p.variants,
-        "tag_names": [link.tag.name for link in p.tags],
-    }
+# Admin endpoints moved to a dedicated admin router
 
 
-@router.delete("/admin/products/{product_id}")
-def delete_product(product_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
-    service.delete_product(db, product_id=product_id)
-    return {"success": True}
+# Admin endpoints moved to a dedicated admin router
 
 
 @router.post("/orders", response_model=OrderOut)
@@ -160,20 +149,7 @@ def start_checkout(order_id: UUID, db: Session = Depends(get_db), user=Depends(g
     return {"checkout_url": session.url}
 
 
-@router.post("/admin/orders/{order_id}/deliver")
-def mark_order_delivered(order_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
-    order = db.get(Order, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    order.status = "delivered"
-    # verify user on delivery
-    if order.user_id:
-        from community.models import User
-        user = db.get(User, order.user_id)
-        if user and not getattr(user, "is_verified", False):
-            user.is_verified = True
-    db.commit()
-    return {"success": True}
+# Admin endpoints moved to a dedicated admin router
 
 
 @router.post("/webhook/stripe")

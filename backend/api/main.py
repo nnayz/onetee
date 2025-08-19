@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from community.router import router as community_router
 from auth.router import router as auth_router
 from marketplace.router import router as shop_router
+from marketplace.admin.router import router as shop_admin_router
 from .config import settings
 
 
@@ -29,6 +30,7 @@ app.add_middleware(
 app.include_router(community_router, prefix="/community")
 app.include_router(auth_router)
 app.include_router(shop_router)
+app.include_router(shop_admin_router)
 
 @app.get("/")
 async def welcome():

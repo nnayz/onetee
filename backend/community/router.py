@@ -135,6 +135,20 @@ def bookmark_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get
 # Follow/Unfollow removed from product requirements
 
 
+@router.delete("/posts/{post_id}", response_model=ActionOut)
+def delete_own_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	from sqlalchemy import delete
+	post = db.get(Post, post_id)
+	if not post:
+		raise HTTPException(status_code=404, detail="Not found")
+	if post.author_id != user.id:
+		raise HTTPException(status_code=403, detail="Not allowed")
+	# Cascades remove related rows
+	db.execute(delete(Post).where(Post.id == post_id))
+	db.commit()
+	return {"success": True}
+
+
 @router.get("/profiles/{username}", response_model=ProfileOut)
 def get_profile(username: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
 	from sqlalchemy import select, func

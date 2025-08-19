@@ -65,6 +65,32 @@ class MarketplaceService:
         db.commit()
         return True
 
+    def search_products(self, db: Session, *, query: str, limit: int = 50, offset: int = 0) -> List[Product]:
+        from sqlalchemy import or_
+        # Simple ILIKE-based search over name, description, and associated tag names
+        stmt = (
+            select(Product)
+            .where(Product.is_active == True)
+            .order_by(Product.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        if query:
+            pattern = f"%{query}%"
+            tag_subq = (
+                select(ProductTagLink.product_id)
+                .join(ProductTag, ProductTag.id == ProductTagLink.tag_id)
+                .where(ProductTag.name.ilike(pattern))
+            )
+            stmt = stmt.where(
+                or_(
+                    Product.name.ilike(pattern),
+                    Product.description.ilike(pattern),
+                    Product.id.in_(tag_subq),
+                )
+            )
+        return db.execute(stmt).scalars().all()
+
     def create_order(self, db: Session, *, user_id: UUID | None, items: list[tuple[UUID, UUID | None, int]]) -> Order:
         # items: list of (product_id, variant_id, quantity)
         order = Order(user_id=user_id, status="pending")

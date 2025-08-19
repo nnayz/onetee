@@ -1,11 +1,12 @@
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import { CommunityAPI } from "@/lib/api/community";
 import { AuthAPI } from "@/lib/api/auth";
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
+  const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: AuthAPI.me });
   const profileQuery = useQuery({
     queryKey: ["profile", username],
@@ -16,6 +17,14 @@ export default function ProfilePage() {
     queryKey: ["profile", username, "posts"],
     queryFn: async () => CommunityAPI.getProfilePosts(username as string),
     enabled: !!username,
+  });
+
+  const deletePost = useMutation({
+    mutationFn: (postId: string) => CommunityAPI.deletePost(postId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile", username, "posts"] });
+      queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
+    },
   });
 
   // Follow/Unfollow removed
@@ -39,6 +48,17 @@ export default function ProfilePage() {
             <div key={p.id} className="border-b border-gray-200 pb-6">
               <div className="text-gray-900">{p.content}</div>
               <div className="text-xs text-gray-500 mt-2">{new Date(p.created_at).toLocaleString()}</div>
+              {me.data?.username === username && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => deletePost.mutate(p.id)}
+                    className="text-xs text-red-600 hover:text-red-700"
+                    disabled={deletePost.isPending}
+                  >
+                    {deletePost.isPending ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

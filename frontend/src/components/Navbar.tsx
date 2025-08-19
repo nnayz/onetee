@@ -9,7 +9,7 @@ const Navbar: FC = () => {
   const location = useLocation();
   const meQuery = useQuery({ queryKey: ["auth","me"], queryFn: AuthAPI.me, retry: false });
   return (
-    <nav className="fixed top-0 inset-x-0 z-50 bg-inherit border-none border-gray-200 pt-5">
+    <nav className="fixed top-0 inset-x-0 z-50 bg-inherit hover:bg-white border-none border-gray-200 pt-5">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3 ml-8">
           <img 
