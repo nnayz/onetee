@@ -24,6 +24,37 @@ interface Thread {
   isReposted: boolean;
 }
 
+// Raw post shape as returned by the backend `/community/posts` endpoint
+interface PostWithAuthor {
+  id: string;
+  author_id: string;
+  content: string;
+  in_reply_to_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  media_items: unknown[];
+  author: {
+    id: string;
+    username: string;
+    display_name?: string | null;
+  };
+  likes: number;
+  reposts: number;
+  replies: number;
+}
+
+interface TrendingTag {
+  tag: string;
+  count: number;
+}
+
+interface ActivityItem {
+  id: string;
+  type: string;
+  post_id?: string | null;
+  actor?: { username?: string | null; display_name?: string | null };
+}
+
 const CommunityPage: FC = () => {
   const navigate = useNavigate();
   const [newThread, setNewThread] = useState("");
@@ -32,14 +63,16 @@ const CommunityPage: FC = () => {
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: AuthAPI.me });
 
-  const [threads, setThreads] = useState<Thread[]>([]);
+  // Track local interactions to show immediate feedback without mutating cache shape
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [repostedIds, setRepostedIds] = useState<Set<string>>(new Set());
 
-  // Load posts from backend (simple list newest first)
-  const postsQuery = useQuery({
+  // Load posts from backend (newest first) and map to display threads via select
+  const postsQuery = useQuery<PostWithAuthor[], Error, Thread[]>({
     queryKey: ["community", "posts"],
     queryFn: () => CommunityAPI.listPosts({ limit: 50 }),
-    onSuccess: (data) => {
-      const mapped: Thread[] = (data || []).map((p: any) => ({
+    select: (data) =>
+      (data || []).map((p) => ({
         id: p.id,
         author: p.author?.display_name || p.author?.username || "",
         handle: `@${p.author?.username || ""}`,
@@ -51,14 +84,12 @@ const CommunityPage: FC = () => {
         replies: p.replies ?? 0,
         reposts: p.reposts ?? 0,
         avatar: (p.author?.username || "").slice(0, 2).toUpperCase(),
-        isLiked: false,
-        isReposted: false,
-      }));
-      setThreads(mapped);
-    },
+        isLiked: likedIds.has(p.id),
+        isReposted: repostedIds.has(p.id),
+      })),
   });
 
-  const activityQuery = useQuery({
+  const activityQuery = useQuery<ActivityItem[]>({
     queryKey: ["community", "activity"],
     queryFn: () => CommunityAPI.recentActivity(),
     enabled: !!meQuery.data?.id,
@@ -66,10 +97,18 @@ const CommunityPage: FC = () => {
 
   // Who to follow removed
 
-  const trendingQuery = useQuery({
+  const trendingQuery = useQuery<TrendingTag[]>({
     queryKey: ["community", "trending"],
     queryFn: () => CommunityAPI.trendingTags(),
   });
+
+  function getErrorMessage(err: unknown): string {
+    if (typeof err === "object" && err !== null) {
+      const e = err as { detail?: string; message?: string; response?: { data?: { detail?: string } } };
+      return e.response?.data?.detail || e.detail || e.message || "Unable to post right now";
+    }
+    return "Unable to post right now";
+  }
 
   const createPost = useMutation({
     mutationFn: (content: string) =>
@@ -82,9 +121,8 @@ const CommunityPage: FC = () => {
       // Refetch to get server UUIDs (avoid temp ids)
       queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
     },
-    onError: (e: any) => {
-      const message = e?.detail || e?.message || "Unable to post right now";
-      setPostError(message);
+    onError: (e) => {
+      setPostError(getErrorMessage(e));
     }
   });
 
@@ -100,15 +138,41 @@ const CommunityPage: FC = () => {
   const handleLike = (threadId: string) => {
     if (!meQuery.data?.id) return;
     if (!isUuid(threadId)) return; // avoid 422 for temp ids
-    setThreads(threads.map(t => t.id === threadId ? { ...t, likes: t.isLiked ? t.likes - 1 : t.likes + 1, isLiked: !t.isLiked } : t));
-    CommunityAPI.likePost(threadId).catch(() => setThreads(threads));
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
+      return next;
+    });
+    CommunityAPI.likePost(threadId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
+    }).catch(() => {
+      // revert on error
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
+        return next;
+      });
+    });
   };
 
   const handleRepost = (threadId: string) => {
     if (!meQuery.data?.id) return;
     if (!isUuid(threadId)) return; // avoid 422 for temp ids
-    setThreads(threads.map(t => t.id === threadId ? { ...t, reposts: t.isReposted ? t.reposts - 1 : t.reposts + 1, isReposted: !t.isReposted } : t));
-    CommunityAPI.repostPost(threadId).catch(() => setThreads(threads));
+    setRepostedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
+      return next;
+    });
+    CommunityAPI.repostPost(threadId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
+    }).catch(() => {
+      // revert on error
+      setRepostedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
+        return next;
+      });
+    });
   };
 
 
@@ -131,42 +195,21 @@ const CommunityPage: FC = () => {
           <div className="sticky top-24">
             <h2 className="text-xl font-light text-gray-900 mb-6">OneTee Community</h2>
             
-            {/* Navigation */}
+            {/* Navigation - only Community */}
             <nav className="space-y-2">
-              <button 
-                onClick={() => navigate("/")}
-                className="flex items-center space-x-3 p-3 hover:bg-gray-50 transition-colors duration-200 w-full text-left"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                <span className="font-light">Home</span>
-              </button>
-              <a href="#" className="flex items-center space-x-3 p-3 bg-gray-100 text-gray-900">
+              <div className="flex items-center space-x-3 p-3 bg-gray-100 text-gray-900">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
                 <span className="font-light">Community</span>
-              </a>
-              <a href="#" className="flex items-center space-x-3 p-3 hover:bg-gray-50 transition-colors duration-200">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <span className="font-light">Explore</span>
-              </a>
-              <a href="#" className="flex items-center space-x-3 p-3 hover:bg-gray-50 transition-colors duration-200">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM9 7H4l5-5v5zM12 12h.01" />
-                </svg>
-                <span className="font-light">Trending</span>
-              </a>
+              </div>
             </nav>
 
             {/* Trending Topics - live */}
             <div className="mt-8">
               <h3 className="text-lg font-light text-gray-900 mb-4">Trending</h3>
               <div className="space-y-3">
-                {Array.isArray(trendingQuery.data) && trendingQuery.data.map((t: any) => (
+                {Array.isArray(trendingQuery.data) && trendingQuery.data.map((t) => (
                   <div key={t.tag} className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
                     <p className="text-sm font-light text-gray-900">#{t.tag}</p>
                     <p className="text-xs text-gray-500">{t.count} posts</p>
@@ -228,7 +271,7 @@ const CommunityPage: FC = () => {
 
           {/* Feed */}
           <div className="pb-20 lg:pb-0">
-            {threads.map((thread, index) => (
+            {(postsQuery.data || []).map((thread, index) => (
               <motion.div
                 key={thread.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -278,7 +321,7 @@ const CommunityPage: FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
                         </div>
-                        <span className="text-xs sm:text-sm">{thread.reposts}</span>
+                        <span className="text-xs sm:text-sm">{thread.reposts + (thread.isReposted ? 1 : 0)}</span>
                       </button>
                       
                       <button 
@@ -292,7 +335,7 @@ const CommunityPage: FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                           </svg>
                         </div>
-                        <span className="text-xs sm:text-sm">{thread.likes}</span>
+                        <span className="text-xs sm:text-sm">{thread.likes + (thread.isLiked ? 1 : 0)}</span>
                       </button>
                       
                       <button className="flex items-center space-x-1 text-gray-500 hover:text-gray-700 transition-colors duration-200 group">
@@ -323,7 +366,7 @@ const CommunityPage: FC = () => {
               <div className="bg-gray-50 p-4">
                 <h3 className="text-xl font-light text-gray-900 mb-4">Recent Activity</h3>
                 <div className="space-y-3 text-sm">
-                  {(activityQuery.data || []).map((n: any) => (
+                  {(activityQuery.data || []).map((n) => (
                     <p key={n.id} className="text-gray-600">
                       <span className="font-light">{n.actor?.display_name || n.actor?.username}</span> {n.type}{n.post_id ? ' your post' : ''}
                     </p>
