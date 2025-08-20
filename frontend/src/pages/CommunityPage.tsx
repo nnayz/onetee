@@ -59,6 +59,8 @@ const CommunityPage: FC = () => {
   const navigate = useNavigate();
   const [newThread, setNewThread] = useState("");
   const [postError, setPostError] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const queryClient = useQueryClient();
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: AuthAPI.me });
@@ -69,8 +71,8 @@ const CommunityPage: FC = () => {
 
   // Load posts from backend (newest first) and map to display threads via select
   const postsQuery = useQuery<PostWithAuthor[], Error, Thread[]>({
-    queryKey: ["community", "posts"],
-    queryFn: () => CommunityAPI.listPosts({ limit: 50 }),
+    queryKey: ["community", "posts", { tag: selectedTag || null }],
+    queryFn: () => CommunityAPI.listPosts({ limit: 50, tag: selectedTag || undefined }),
     select: (data) =>
       (data || []).map((p) => ({
         id: p.id,
@@ -111,12 +113,14 @@ const CommunityPage: FC = () => {
   }
 
   const createPost = useMutation({
-    mutationFn: (content: string) =>
+    mutationFn: async (payload: { content: string; mediaKeys?: string[] }) =>
       CommunityAPI.createPost({
-        content,
+        content: payload.content,
+        media_keys: payload.mediaKeys || null,
       }),
     onSuccess: () => {
       setNewThread("");
+      setFiles([]);
       setPostError(null);
       // Refetch to get server UUIDs (avoid temp ids)
       queryClient.invalidateQueries({ queryKey: ["community", "posts"] });
@@ -128,11 +132,24 @@ const CommunityPage: FC = () => {
 
   const isUuid = (v: string) => /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(v);
 
-  const handlePostThread = () => {
+  const handlePostThread = async () => {
     const content = newThread.trim();
     if (!content || !meQuery.data?.id) return;
-    // Let server create and then refetch (no local temp ids)
-    createPost.mutate(content);
+    try {
+      let mediaKeys: string[] = [];
+      if (files.length > 0) {
+        // Upload each file using presigned URLs
+        const uploads = await Promise.all(files.map(async (f) => {
+          const presign = await CommunityAPI.presignMedia({ filename: f.name, content_type: f.type || "application/octet-stream" });
+          await fetch(presign.url, { method: "PUT", body: f, headers: { "Content-Type": f.type || "application/octet-stream" } });
+          return presign.object_key as string;
+        }));
+        mediaKeys = uploads.filter(Boolean);
+      }
+      createPost.mutate({ content, mediaKeys });
+    } catch (e) {
+      setPostError(getErrorMessage(e));
+    }
   };
 
   const handleLike = (threadId: string) => {
@@ -210,7 +227,7 @@ const CommunityPage: FC = () => {
               <h3 className="text-lg font-light text-gray-900 mb-4">Trending</h3>
               <div className="space-y-3">
                 {Array.isArray(trendingQuery.data) && trendingQuery.data.map((t) => (
-                  <div key={t.tag} className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
+                  <div key={t.tag} className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200" onClick={() => setSelectedTag(t.tag)}>
                     <p className="text-sm font-light text-gray-900">#{t.tag}</p>
                     <p className="text-xs text-gray-500">{t.count} posts</p>
                   </div>
@@ -246,9 +263,12 @@ const CommunityPage: FC = () => {
                 />
                 <div className="flex justify-between items-center mt-4">
                   <div className="flex items-center space-x-2 sm:space-x-4 text-gray-400">
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 hover:text-gray-600 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
+                    <label className="cursor-pointer hover:text-gray-600">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+                    </label>
                     <svg className="w-4 h-4 sm:w-5 sm:h-5 hover:text-gray-600 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v10a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10" />
                     </svg>
@@ -262,6 +282,13 @@ const CommunityPage: FC = () => {
                     {meQuery.data?.id ? 'Post' : 'Sign in to Post'}
                   </button>
                 </div>
+                {files.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {files.map((f, idx) => (
+                      <span key={idx} className="px-2 py-1 text-xs bg-gray-100 text-gray-700">{f.name}</span>
+                    ))}
+                  </div>
+                )}
                 {postError && (
                   <p className="mt-2 text-sm text-red-600">{postError}</p>
                 )}

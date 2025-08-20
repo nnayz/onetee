@@ -16,12 +16,13 @@ service = MarketplaceService()
 
 
 @router.get("/products", response_model=List[ProductOut])
-def list_products(gender: str | None = None, tag: str | None = None, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
-    products = service.list_products(db, gender=gender, tag=tag, limit=limit, offset=offset)
+def list_products(gender: str | None = None, tag: str | None = None, collection: str | None = None, sort: str | None = None, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+    products = service.list_products(db, gender=gender, tag=tag, collection=collection, sort=sort, limit=limit, offset=offset)
     # adapt tag names
     result: list[dict] = []
     for p in products:
         tag_names = [link.tag.name for link in p.tags]
+        collection_names = [link.collection.name for link in p.collections]
         result.append({
             "id": p.id,
             "sku": p.sku,
@@ -36,6 +37,7 @@ def list_products(gender: str | None = None, tag: str | None = None, limit: int 
             "images": p.images,
             "variants": p.variants,
             "tag_names": tag_names,
+            "collection_names": collection_names,
         })
     return result
 
@@ -46,6 +48,7 @@ def search_products(q: str, limit: int = 50, offset: int = 0, db: Session = Depe
     result: list[dict] = []
     for p in products:
         tag_names = [link.tag.name for link in p.tags]
+        collection_names = [link.collection.name for link in p.collections]
         result.append({
             "id": p.id,
             "sku": p.sku,
@@ -60,6 +63,7 @@ def search_products(q: str, limit: int = 50, offset: int = 0, db: Session = Depe
             "images": p.images,
             "variants": p.variants,
             "tag_names": tag_names,
+            "collection_names": collection_names,
         })
     return result
 

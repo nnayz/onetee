@@ -22,6 +22,8 @@ from ..models import (
     Bookmark,
     Follow,
     Notification,
+    Hashtag,
+    PostHashtag,
 )
 
 
@@ -52,6 +54,20 @@ class CommunityService:
         db.add(post)
         db.commit()
         db.refresh(post)
+        # Extract hashtags and notify parent on reply
+        self._extract_and_attach_hashtags(db, post_id=post.id, content=content)
+        if in_reply_to_id:
+            parent = db.get(Post, in_reply_to_id)
+            if parent and parent.author_id != author_id:
+                db.add(
+                    Notification(
+                        recipient_id=parent.author_id,
+                        actor_id=author_id,
+                        type="reply",
+                        post_id=post.id,
+                    )
+                )
+                db.commit()
         return post
 
     def attach_media_to_post(
@@ -73,6 +89,25 @@ class CommunityService:
         db.commit()
         db.refresh(media)
         return media
+
+    # Helpers
+    def _extract_and_attach_hashtags(self, db: Session, *, post_id: UUID, content: str) -> None:
+        import re
+        tags = set([t.lower() for t in re.findall(r"#(\w+)", content or "") if t])
+        if not tags:
+            return
+        for tag in tags:
+            existing = db.execute(select(Hashtag).where(Hashtag.tag == tag)).scalar_one_or_none()
+            if not existing:
+                existing = Hashtag(tag=tag)
+                db.add(existing)
+                db.flush()
+            has_link = db.execute(
+                select(PostHashtag).where(PostHashtag.post_id == post_id, PostHashtag.hashtag_id == existing.id)
+            ).scalar_one_or_none()
+            if not has_link:
+                db.add(PostHashtag(post_id=post_id, hashtag_id=existing.id))
+        db.commit()
 
     # Social
     def like_post(self, db: Session, *, user_id: UUID, post_id: UUID) -> bool:

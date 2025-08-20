@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -20,6 +20,7 @@ from .schemas import (
 	MediaItemOut,
 )
 from storage.minio_service import MinioService
+from uuid import uuid4
 
 router = APIRouter(
 	tags=["OneTee Community"],
@@ -71,7 +72,7 @@ def like_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get_cur
 
 
 @router.get("/posts", response_model=list[PostWithAuthorOut])
-def list_posts(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+def list_posts(limit: int = 50, offset: int = 0, tag: str | None = None, db: Session = Depends(get_db)):
 	# newest first with engagement counts
 	from sqlalchemy import select, func
 	from sqlalchemy.orm import joinedload
@@ -86,17 +87,23 @@ def list_posts(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
 	)
 	stmt = (
 		select(Post, func.coalesce(likes_sq.c.likes, 0), func.coalesce(reposts_sq.c.reposts, 0), func.coalesce(replies_sq.c.replies, 0))
-		.options(joinedload(Post.author))
+		.options(joinedload(Post.author), joinedload(Post.media_items))
 		.outerjoin(likes_sq, Post.id == likes_sq.c.post_id)
 		.outerjoin(reposts_sq, Post.id == reposts_sq.c.post_id)
 		.outerjoin(replies_sq, Post.id == replies_sq.c.post_id)
-		.order_by(Post.created_at.desc())
-		.offset(offset)
-		.limit(limit)
 	)
-	rows = db.execute(stmt).all()
+	if tag:
+		from sqlalchemy import select as SAselect
+		tag_sq = SAselect(PostHashtag.post_id).join(Hashtag, Hashtag.id == PostHashtag.hashtag_id).where(Hashtag.tag == tag).subquery()
+		stmt = stmt.where(Post.id.in_(tag_sq))
+	stmt = stmt.order_by(Post.created_at.desc()).offset(offset).limit(limit)
+	rows = db.execute(stmt).unique().all()
 	result: list[dict] = []
 	for post, likes, reposts, replies in rows:
+		mi = [
+			{"id": m.id, "url": m.url, "media_type": getattr(m, "media_type", "image"), "alt_text": getattr(m, "alt_text", None)}
+			for m in getattr(post, "media_items", [])
+		]
 		result.append(
 			{
 				"id": post.id,
@@ -105,7 +112,7 @@ def list_posts(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
 				"in_reply_to_id": post.in_reply_to_id,
 				"created_at": post.created_at,
 				"updated_at": post.updated_at,
-				"media_items": [],
+				"media_items": mi,
 				"author": {
 					"id": post.author.id if post.author else None,
 					"username": post.author.username if post.author else None,
@@ -334,3 +341,28 @@ def admin_delete_user(user_id: UUID, db: Session = Depends(get_db), admin=Depend
 	db.commit()
 	return {"success": True}
 
+
+@router.post("/profiles/me/avatar/presign", response_model=PresignedUrlResponse)
+def presign_avatar(file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Generate a presigned URL so the client can upload the avatar directly to MinIO.
+    Returns both url and object_key.
+    """
+    minio_service.ensure_all_buckets()
+    bucket = minio_service.get_bucket_for("avatar")
+    ext = minio_service.pick_image_extension(getattr(file, "filename", None), getattr(file, "content_type", None))
+    object_key = f"avatars/{user.id}/{uuid4().hex}.{ext}"
+    url = minio_service.presign_put(bucket, object_key)
+    return PresignedUrlResponse(url=url, object_key=object_key)
+
+
+@router.post("/profiles/me/avatar/attach")
+def attach_avatar(req: AttachMediaRequest, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Finalize an avatar upload by saving the public URL to the user's profile."""
+    bucket = minio_service.get_bucket_for("avatar")
+    public_url = minio_service.build_public_url(bucket=bucket, object_key=req.object_key)
+    subject = db.get(User, user.id)
+    if not subject:
+        raise HTTPException(status_code=404, detail="User not found")
+    subject.avatar_url = public_url
+    db.commit()
+    return {"avatar_url": public_url}

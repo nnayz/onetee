@@ -30,6 +30,8 @@ const MarketplacePage: FC = () => {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sort, setSort] = useState<string>("newest");
+  const [q, setQ] = useState<string>("");
 
   const categories = [
     { id: "ALL", name: "VIEW ALL" },
@@ -40,13 +42,13 @@ const MarketplacePage: FC = () => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    ShopAPI.listProducts().then((data) => {
+    ShopAPI.listProducts({ sort }).then((data) => {
       if (!cancelled) setProducts(data);
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true };
-  }, []);
+  }, [sort]);
 
   const filteredProducts = useMemo(() => {
     if (selectedCategory === "ALL") return products;
@@ -108,9 +110,12 @@ const MarketplacePage: FC = () => {
                   {filteredProducts.length} PRODUCT{filteredProducts.length !== 1 ? 'S' : ''}
                 </span>
                 <div className="h-4 w-px bg-gray-200"></div>
-                <button className="text-gray-600 hover:text-gray-900 transition-colors duration-200 font-light tracking-wide">
-                  FILTER
-                </button>
+                <select value={sort} onChange={(e) => setSort(e.target.value)} className="text-gray-600 bg-transparent font-light tracking-wide">
+                  <option value="newest">Newest</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="bestseller">Bestsellers</option>
+                </select>
               </div>
             </div>
             

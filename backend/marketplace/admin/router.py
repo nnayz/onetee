@@ -3,12 +3,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from database import get_db
 from auth.deps import get_admin_user
 from ..service import MarketplaceService
-from ..schemas import TagCreate, TagOut, ProductCreate, ProductOut
-from ..models import Product, ProductTag, ProductTagLink
+from ..schemas import TagCreate, TagOut, ProductCreate, ProductOut, CollectionCreate, CollectionOut
+from ..models import Product, ProductTag, ProductTagLink, Collection, ProductCollectionLink
 import os
 from storage.minio_service import MinioService
 
@@ -134,11 +135,59 @@ def assign_tag_to_product(product_id: UUID, tag_id: UUID, db: Session = Depends(
 
 
 # Collections
-@router.post("/collections")
-def create_collection():
-    # Placeholder: collection model not defined in current codebase
-    # Implement once collection models/schemas exist
-    raise HTTPException(status_code=501, detail="Collections not implemented yet")
+@router.post("/collections", response_model=CollectionOut)
+def create_collection(payload: CollectionCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+    existing = db.execute(select(Collection).where(Collection.name == payload.name)).scalar_one_or_none()
+    if existing:
+        return existing
+    col = Collection(name=payload.name, description=payload.description)
+    db.add(col)
+    db.commit()
+    db.refresh(col)
+    return col
+
+
+@router.get("/collections", response_model=List[CollectionOut])
+def list_collections(db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+    return db.execute(select(Collection).order_by(Collection.name.asc())).scalars().all()
+
+
+@router.put("/collections/{collection_id}", response_model=CollectionOut)
+def update_collection(collection_id: UUID, payload: CollectionCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+    col = db.get(Collection, collection_id)
+    if not col:
+        raise HTTPException(status_code=404, detail="Not found")
+    if payload.name and payload.name != col.name:
+        exists = db.execute(select(Collection).where(Collection.name == payload.name)).scalar_one_or_none()
+        if exists:
+            raise HTTPException(status_code=400, detail="Collection name exists")
+    col.name = payload.name or col.name
+    col.description = payload.description
+    db.commit()
+    db.refresh(col)
+    return col
+
+
+@router.delete("/collections/{collection_id}")
+def delete_collection(collection_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+    from sqlalchemy import delete
+    db.execute(delete(Collection).where(Collection.id == collection_id))
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/products/{product_id}/collections/{collection_id}")
+def assign_collection_to_product(product_id: UUID, collection_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+    product = db.get(Product, product_id)
+    col = db.get(Collection, collection_id)
+    if not product or not col:
+        raise HTTPException(status_code=404, detail="Not found")
+    exists = db.execute(select(ProductCollectionLink).where(ProductCollectionLink.product_id == product_id, ProductCollectionLink.collection_id == collection_id)).scalar_one_or_none()
+    if exists:
+        return {"success": True}
+    db.add(ProductCollectionLink(product_id=product_id, collection_id=collection_id))
+    db.commit()
+    return {"success": True}
 
 
 # Image upload: reuse /shop/media if introduced later. For now, images handled via ProductCreate.image_urls

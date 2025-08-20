@@ -10,14 +10,31 @@ from .models import Product, ProductImage, ProductVariant, ProductTag, ProductTa
 
 
 class MarketplaceService:
-    def list_products(self, db: Session, *, gender: str | None = None, tag: str | None = None, limit: int = 50, offset: int = 0) -> List[Product]:
-        stmt = select(Product).where(Product.is_active == True).order_by(Product.created_at.desc()).offset(offset).limit(limit)
+    def list_products(self, db: Session, *, gender: str | None = None, tag: str | None = None, collection: str | None = None, sort: str | None = None, limit: int = 50, offset: int = 0) -> List[Product]:
+        from sqlalchemy import desc, asc
+        stmt = select(Product).where(Product.is_active == True).offset(offset).limit(limit)
         if gender in {"men", "women"}:
             stmt = stmt.where(Product.gender == gender)
         if tag:
             from sqlalchemy import exists
             tag_subq = select(ProductTagLink.product_id).join(ProductTag, ProductTag.id == ProductTagLink.tag_id).where(ProductTag.name == tag)
             stmt = stmt.where(Product.id.in_(tag_subq))
+        if collection:
+            from .models import Collection, ProductCollectionLink
+            col_subq = select(ProductCollectionLink.product_id).join(Collection, Collection.id == ProductCollectionLink.collection_id).where(Collection.name == collection)
+            stmt = stmt.where(Product.id.in_(col_subq))
+        # sorting: newest|price_asc|price_desc|bestseller
+        if sort == "price_asc":
+            stmt = stmt.order_by(asc(Product.price_cents), desc(Product.created_at))
+        elif sort == "price_desc":
+            stmt = stmt.order_by(desc(Product.price_cents), desc(Product.created_at))
+        elif sort == "bestseller":
+            # naive bestseller: products with most order items
+            from sqlalchemy import func
+            items_count = select(OrderItem.product_id, func.count(OrderItem.id).label("cnt")).group_by(OrderItem.product_id).subquery()
+            stmt = stmt.outerjoin(items_count, items_count.c.product_id == Product.id).order_by(desc(items_count.c.cnt.nullslast()), desc(Product.created_at))
+        else:
+            stmt = stmt.order_by(desc(Product.created_at))
         return db.execute(stmt).scalars().all()
 
     def create_tag(self, db: Session, *, name: str, description: str | None) -> ProductTag:

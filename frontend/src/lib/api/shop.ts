@@ -14,8 +14,10 @@ export interface ProductCreate {
 }
 
 export const ShopAPI = {
-  listProducts: (params?: { gender?: "men" | "women"; tag?: string; limit?: number; offset?: number }) =>
+  listProducts: (params?: { gender?: "men" | "women"; tag?: string; collection?: string; sort?: string; limit?: number; offset?: number }) =>
     api.get("/shop/products", { params }).then((r) => r.data),
+  searchProducts: (q: string, params?: { limit?: number; offset?: number }) =>
+    api.get("/shop/products/search", { params: { q, ...(params || {}) } }).then((r) => r.data),
   getProduct: (id: string) => api.get(`/shop/products/${id}`).then((r) => r.data),
   createTag: (name: string, description?: string) => api.post(`/shop/admin/tags`, { name, description }).then((r) => r.data),
   createProduct: (data: ProductCreate) => api.post("/shop/admin/products", data).then((r) => r.data),
