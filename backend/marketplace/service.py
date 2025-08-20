@@ -51,7 +51,9 @@ class MarketplaceService:
         return db.execute(select(ProductTag).order_by(ProductTag.name.asc())).scalars().all()
 
     def create_product(self, db: Session, *, sku: str, name: str, description: str | None, gender: str, price_cents: int, currency: str, image_urls: List[str], sizes: List[str], colors: List[str], tags: List[str]) -> Product:
-        product = Product(sku=sku, name=name, description=description, gender=gender, price_cents=price_cents, currency=currency)
+        # Enforce INR as currency regardless of input
+        currency_enforced = "INR"
+        product = Product(sku=sku, name=name, description=description, gender=gender, price_cents=price_cents, currency=currency_enforced)
         db.add(product)
         db.flush()
         for idx, url in enumerate(image_urls):
@@ -110,7 +112,7 @@ class MarketplaceService:
 
     def create_order(self, db: Session, *, user_id: UUID | None, items: list[tuple[UUID, UUID | None, int]]) -> Order:
         # items: list of (product_id, variant_id, quantity)
-        order = Order(user_id=user_id, status="pending")
+        order = Order(user_id=user_id, status="pending", currency="INR")  # Enforce INR currency
         db.add(order)
         db.flush()
         total_cents = 0

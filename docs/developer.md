@@ -48,6 +48,7 @@ Payments (Stripe, optional):
 - STRIPE_SECRET_KEY
 - STRIPE_WEBHOOK_SECRET
 - PUBLIC_URL (frontend URL for redirects)
+- All payments processed in INR currency
 
 ## Running locally
 Backend (from backend/):

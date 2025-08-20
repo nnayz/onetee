@@ -1,7 +1,7 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -10,13 +10,24 @@ from auth.deps import get_admin_user
 from ..service import MarketplaceService
 from ..schemas import TagCreate, TagOut, ProductCreate, ProductOut, CollectionCreate, CollectionOut
 from ..models import Product, ProductTag, ProductTagLink, Collection, ProductCollectionLink
-import os
 from storage.minio_service import MinioService
 
 
-router = APIRouter(prefix="/shop/admin", tags=["Shop Admin"])
+router = APIRouter(prefix="/admin", tags=["Admin"])
 service = MarketplaceService()
 minio = MinioService()
+
+# Login endpoint 
+@router.post('/login', response_model=bool)
+async def login(username: str, password: str):
+    try:
+        admin = get_admin_user(username, password)
+        if not admin:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        return True
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
 
 
 # Tags CRUD
@@ -62,18 +73,18 @@ def update_tag(tag_id: UUID, payload: TagCreate, db: Session = Depends(get_db), 
 # Products CRUD
 @router.post("/products", response_model=ProductOut)
 def create_product(
-    sku: str = Form(...),
-    name: str = Form(...),
+    sku: str = Form(...), # Stock Keeping Unit
+    name: str = Form(...), # product name
     gender: str = Form(...),  # men|women
-    price_cents: int = Form(...),
-    currency: str = Form("INR"),
-    description: str | None = Form(None),
+    price_cents: int = Form(...), # price in cents
+    currency: str = Form("INR"), # currency (INR, USD, etc.)
+    description: str | None = Form(None), # description
     sizes: str | None = Form(None),  # comma-separated
     colors: str | None = Form(None), # comma-separated
-    tags: str | None = Form(None),   # comma-separated tag names
-    images: list[UploadFile] = File(default_factory=list),
-    db: Session = Depends(get_db),
-    admin=Depends(get_admin_user),
+    tags: str | None = Form(None),   # comma-separated tag names (tag ids)
+    images: List[UploadFile] = File(default_factory=list), # list of images
+    db: Session = Depends(get_db), # database session
+    admin=Depends(get_admin_user), # admin user
 ):
     # Upload images to MinIO and collect URLs
     image_urls = minio.upload_product_uploadfiles(sku, images)
@@ -114,6 +125,12 @@ def create_product(
 
 @router.delete("/products/{product_id}")
 def delete_product(product_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+    # delete product from minio
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    for image in product.images:
+        minio.delete_object(image)
     service.delete_product(db, product_id=product_id)
     return {"success": True}
 

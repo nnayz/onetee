@@ -25,7 +25,8 @@ Prefix: `/shop`
 - POST `/shop/orders`
   - Auth required
   - Body: `{ items: [{ product_id, variant_id?, quantity }] }`
+  - Creates order in INR currency
 
 - POST `/shop/orders/{order_id}/checkout`
   - Auth required
-  - Returns: `{ checkout_url }`
+  - Returns: `{ checkout_url }` (Stripe checkout in INR)

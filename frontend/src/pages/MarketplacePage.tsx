@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import Footer from "@/components/Footer";
 import { ShopAPI } from "@/lib/api/shop";
+import { formatINR } from "@/lib/utils";
 
 interface Product {
   id: string;
@@ -190,9 +191,7 @@ const MarketplacePage: FC = () => {
                 
                 {/* Price */}
                 <div className="flex items-center space-x-2 pt-1">
-                  <span className="text-sm font-light text-gray-900">
-                    ₹ {((product.price_cents || 0) / 100).toLocaleString()}
-                  </span>
+                  <span className="text-sm font-light text-gray-900">{formatINR(product.price_cents || 0)}</span>
                 </div>
               </div>
             </motion.div>

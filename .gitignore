@@ -23,6 +23,7 @@ backend/.venv/
 # docker volumes
 */minio_data
 */postgres_data
+*/pgadmin_data
 
 # Misc
 .DS_Store

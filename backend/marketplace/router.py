@@ -132,7 +132,7 @@ def start_checkout(order_id: UUID, db: Session = Depends(get_db), user=Depends(g
         line_items.append({
             "quantity": item.quantity,
             "price_data": {
-                "currency": order.currency.lower(),
+                "currency": "inr",  # Enforce INR currency for all payments
                 "product_data": {"name": name},
                 "unit_amount": item.unit_price_cents,
             },
