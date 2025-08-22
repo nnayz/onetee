@@ -22,6 +22,7 @@ export const CommunityAPI = {
   getProfileThreads: (username: string, params?: { limit?: number; offset?: number }) => api.get(`/community/profiles/${username}/threads`, { params }).then((r) => r.data),
   replyToThread: (threadId: string, content: string) => api.post(`/community/threads/${threadId}/reply`, { content }).then((r) => r.data),
   getThread: (threadId: string) => api.get(`/community/threads/${threadId}`).then((r) => r.data),
+  getThreadWithReplies: (threadId: string) => api.get(`/community/threads/${threadId}/detail`).then((r) => r.data),
   recentActivity: () => api.get(`/community/activity/recent`).then((r) => r.data),
   trendingTags: () => api.get(`/community/trending/tags`).then((r) => Array.isArray(r.data) ? r.data : []),
   presignMedia: (data: PresignRequest) => api.post(`/community/media/presign`, data).then((r) => r.data),

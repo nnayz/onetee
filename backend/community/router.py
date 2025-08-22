@@ -292,6 +292,142 @@ async def get_thread(
     )
 
 
+@router.get("/threads/{thread_id}/detail", response_model=dict)
+async def get_thread_with_replies(
+    thread_id: UUID,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
+    """Get a thread with its replies in a single response."""
+    # Get the main thread
+    stmt = (
+        select(Thread)
+        .options(
+            joinedload(Thread.author),
+            joinedload(Thread.media_items),
+        )
+        .where(Thread.id == thread_id)
+    )
+    
+    result = db.execute(stmt)
+    thread = result.scalar_one_or_none()
+    
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    
+    # Get like/repost status for current user
+    is_liked = db.query(Like).filter(
+        Like.thread_id == thread.id,
+        Like.user_id == current_user.id
+    ).first() is not None
+    
+    is_reposted = db.query(Repost).filter(
+        Repost.thread_id == thread.id,
+        Repost.user_id == current_user.id
+    ).first() is not None
+    
+    # Get counts
+    likes_count = db.query(Like).filter(Like.thread_id == thread.id).count()
+    replies_count = db.query(Thread).filter(Thread.in_reply_to_id == thread.id).count()
+    reposts_count = db.query(Repost).filter(Repost.thread_id == thread.id).count()
+    
+    # Get replies
+    replies_stmt = (
+        select(Thread)
+        .options(
+            joinedload(Thread.author),
+            joinedload(Thread.media_items),
+        )
+        .where(Thread.in_reply_to_id == thread_id)
+        .order_by(Thread.created_at.asc())  # Show oldest first for conversation flow
+        .offset(offset)
+        .limit(limit)
+    )
+    
+    replies_result = db.execute(replies_stmt)
+    replies = replies_result.scalars().all()
+    
+    # Process replies
+    processed_replies = []
+    for reply in replies:
+        # Get like/repost status for current user
+        reply_is_liked = db.query(Like).filter(
+            Like.thread_id == reply.id,
+            Like.user_id == current_user.id
+        ).first() is not None
+        
+        reply_is_reposted = db.query(Repost).filter(
+            Repost.thread_id == reply.id,
+            Repost.user_id == current_user.id
+        ).first() is not None
+        
+        # Get counts for reply
+        reply_likes_count = db.query(Like).filter(Like.thread_id == reply.id).count()
+        reply_replies_count = db.query(Thread).filter(Thread.in_reply_to_id == reply.id).count()
+        reply_reposts_count = db.query(Repost).filter(Repost.thread_id == reply.id).count()
+        
+        processed_replies.append({
+            "id": str(reply.id),
+            "author_id": str(reply.author_id),
+            "content": reply.content,
+            "in_reply_to_id": str(reply.in_reply_to_id) if reply.in_reply_to_id else None,
+            "created_at": reply.created_at.isoformat(),
+            "updated_at": reply.updated_at.isoformat(),
+            "media_items": [
+                {
+                    "id": str(mi.id),
+                    "url": mi.url,
+                    "media_type": mi.media_type,
+                    "alt_text": mi.alt_text,
+                } for mi in reply.media_items
+            ] if reply.media_items else [],
+            "author": {
+                "id": str(reply.author.id) if reply.author else None,
+                "username": reply.author.username if reply.author else None,
+                "display_name": reply.author.display_name if reply.author else None,
+                "avatar_url": reply.author.avatar_url if reply.author else None,
+            } if reply.author else None,
+            "likes": reply_likes_count,
+            "replies": reply_replies_count,
+            "reposts": reply_reposts_count,
+            "is_liked": reply_is_liked,
+            "is_reposted": reply_is_reposted,
+        })
+    
+    return {
+        "thread": {
+            "id": str(thread.id),
+            "author_id": str(thread.author_id),
+            "content": thread.content,
+            "in_reply_to_id": str(thread.in_reply_to_id) if thread.in_reply_to_id else None,
+            "created_at": thread.created_at.isoformat(),
+            "updated_at": thread.updated_at.isoformat(),
+            "media_items": [
+                {
+                    "id": str(mi.id),
+                    "url": mi.url,
+                    "media_type": mi.media_type,
+                    "alt_text": mi.alt_text,
+                } for mi in thread.media_items
+            ] if thread.media_items else [],
+            "author": {
+                "id": str(thread.author.id) if thread.author else None,
+                "username": thread.author.username if thread.author else None,
+                "display_name": thread.author.display_name if thread.author else None,
+                "avatar_url": thread.author.avatar_url if thread.author else None,
+            } if thread.author else None,
+            "likes": likes_count,
+            "replies": replies_count,
+            "reposts": reposts_count,
+            "is_liked": is_liked,
+            "is_reposted": is_reposted,
+        },
+        "replies": processed_replies,
+    }
+
+
 @router.get("/threads/{thread_id}/replies", response_model=List[ThreadWithAuthorOut])
 async def get_thread_replies(
     thread_id: UUID,

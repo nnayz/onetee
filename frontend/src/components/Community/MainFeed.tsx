@@ -1,6 +1,9 @@
 import type { FC } from "react";
 import { motion } from "framer-motion";
+import { useState } from "react";
 import type { DisplayThread, MediaItem } from "@/types/community.types";
+import MediaGrid from "./MediaGrid";
+import MediaViewer from "./MediaViewer";
 
 interface MainFeedProps {
   threads: DisplayThread[];
@@ -17,6 +20,28 @@ const MainFeed: FC<MainFeedProps> = ({
   onNavigateToPost,
   onNavigateToProfile
 }) => {
+  const [mediaViewerState, setMediaViewerState] = useState<{
+    isOpen: boolean;
+    mediaItems: MediaItem[];
+    initialIndex: number;
+  }>({
+    isOpen: false,
+    mediaItems: [],
+    initialIndex: 0
+  });
+
+  const handleMediaClick = (threadId: string, mediaIndex: number, mediaItems: MediaItem[]) => {
+    setMediaViewerState({
+      isOpen: true,
+      mediaItems,
+      initialIndex: mediaIndex
+    });
+  };
+
+  const closeMediaViewer = () => {
+    setMediaViewerState(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="pb-20 lg:pb-0">
       	{(threads || []).map((thread, index) => (
@@ -63,29 +88,12 @@ const MainFeed: FC<MainFeedProps> = ({
               
               {/* Display media items */}
               {thread.media_items && thread.media_items.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {thread.media_items.map((media: MediaItem) => (
-                    <div key={media.id} className="rounded-lg overflow-hidden">
-                      {media.media_type === "image" ? (
-                        <img 
-                          src={media.url} 
-                          	alt={media.alt_text || "Thread media"} 
-                          className="max-w-full h-auto max-h-96 object-cover cursor-pointer"
-                          onClick={() => onNavigateToPost(thread.id)}
-                          onError={(e) => {
-                            console.error('Media image failed to load:', media.url, e);
-                          }}
-                          onLoad={() => {
-                            console.log('Media image loaded successfully:', media.url);
-                          }}
-                        />
-                      ) : (
-                        <div className="bg-gray-100 p-4 text-center text-gray-500">
-                          Media type: {media.media_type}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                <div className="mt-3">
+                  <MediaGrid
+                    mediaItems={thread.media_items}
+                    onMediaClick={(mediaIndex) => handleMediaClick(thread.id, mediaIndex, thread.media_items)}
+                    className="rounded-lg overflow-hidden"
+                  />
                 </div>
               )}
               
@@ -141,6 +149,14 @@ const MainFeed: FC<MainFeedProps> = ({
           </div>
         </motion.div>
       ))}
+      
+      {/* Media Viewer */}
+      <MediaViewer
+        mediaItems={mediaViewerState.mediaItems}
+        initialIndex={mediaViewerState.initialIndex}
+        isOpen={mediaViewerState.isOpen}
+        onClose={closeMediaViewer}
+      />
     </div>
   );
 };
