@@ -1,6 +1,5 @@
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import Navbar from "@/components/Navbar";
 import { CommunityAPI } from "@/lib/api/community";
 import { AuthAPI } from "@/lib/api/auth";
 import { useState } from "react";
@@ -11,7 +10,7 @@ export default function ThreadPage() {
   const threadQuery = useQuery({ queryKey: ["thread", id], queryFn: () => CommunityAPI.getThread(id as string), enabled: !!id });
   const [reply, setReply] = useState("");
   const replyMutation = useMutation({
-    mutationFn: (content: string) => CommunityAPI.replyToPost(id as string, content),
+    		mutationFn: (content: string) => CommunityAPI.replyToThread(id as string, content),
     onSuccess: () => {
       setReply("");
       threadQuery.refetch();
@@ -22,17 +21,16 @@ export default function ThreadPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
       <div className="max-w-3xl mx-auto px-4 pt-24">
         {t && (
           <div className="space-y-8">
             <div className="border-b border-gray-200 pb-6">
-              <div className="text-gray-900 whitespace-pre-wrap">{t.post.content}</div>
-              <div className="text-xs text-gray-500 mt-2">{new Date(t.post.created_at).toLocaleString()}</div>
+              		<div className="text-gray-900 whitespace-pre-wrap">{t.thread.content}</div>
+		<div className="text-xs text-gray-500 mt-2">{new Date(t.thread.created_at).toLocaleString()}</div>
             </div>
 
             <div className="space-y-6">
-              {(t.replies || []).map((r: any) => (
+              {(t.replies || []).map((r: { id: string; content: string; created_at: string }) => (
                 <div key={r.id} className="border-b border-gray-100 pb-4">
                   <div className="text-gray-900 whitespace-pre-wrap">{r.content}</div>
                   <div className="text-xs text-gray-500 mt-1">{new Date(r.created_at).toLocaleString()}</div>

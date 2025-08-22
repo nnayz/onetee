@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import Navbar from '@/components/Navbar';
 import HamburgerMenu from '@/components/HamburgerMenu';
-import Footer from '@/components/Footer';
 import { ShopAPI } from '@/lib/api/shop';
 
 const SearchPage = () => {
@@ -11,14 +9,12 @@ const SearchPage = () => {
   const [selectedSort, setSelectedSort] = useState('RELEVANCE');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const [results, setResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<Array<{ name?: string; gender?: string }>>([]);
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     ShopAPI.listProducts().then((data) => {
       if (!cancelled) setResults(data);
-    }).finally(() => !cancelled && setLoading(false));
+    });
     return () => { cancelled = true };
   }, []);
 
@@ -26,7 +22,7 @@ const SearchPage = () => {
   const sortOptions = ['RELEVANCE', 'PRICE LOW TO HIGH', 'PRICE HIGH TO LOW', 'NEWEST FIRST'];
 
   const filteredResults = useMemo(() => {
-    return results.filter((item: any) => {
+    return results.filter((item) => {
       const matchesCategory = selectedCategory === 'ALL' || (selectedCategory === 'MEN' ? item.gender === 'men' : item.gender === 'women');
       const matchesSearch = searchQuery === '' || (item.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
@@ -35,7 +31,6 @@ const SearchPage = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
       <HamburgerMenu />
       
       <div className="pt-16">
@@ -269,7 +264,6 @@ const SearchPage = () => {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 };

@@ -1,5 +1,8 @@
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from minio import Minio
 
@@ -9,7 +12,8 @@ def get_minio_client() -> Minio:
     access_key = os.getenv("MINIO_ROOT_USER", "minioadmin")
     secret_key = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
     secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
-    return Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure)
+    region = os.getenv("MINIO_REGION", "ap-south-1")
+    return Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
 
 
 def ensure_bucket(client: Minio, bucket_name: str) -> None:

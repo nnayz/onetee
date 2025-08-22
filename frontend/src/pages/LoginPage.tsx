@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AuthAPI } from "@/lib/api/auth";
 import type { LoginPayload } from "@/lib/api/auth";
-import Navbar from "@/components/Navbar";
 
 export default function LoginPage() {
   const queryClient = useQueryClient();
@@ -20,7 +19,7 @@ export default function LoginPage() {
       queryClient.invalidateQueries({ queryKey: ["me"] });
       navigate("/community");
     },
-    onError: (e: any) => setError(e?.detail ?? "Login failed"),
+    onError: (e: { detail?: string }) => setError(e?.detail ?? "Login failed"),
   });
 
   const signupMutation = useMutation({
@@ -34,9 +33,9 @@ export default function LoginPage() {
       setMode("login");
       await loginMutation.mutateAsync({ username_or_email: reg.username, password: reg.password });
     },
-    onError: (e: any) => {
+    onError: (e: { detail?: string | Array<{ msg?: string }> }) => {
       if (Array.isArray(e?.detail)) {
-        setError(e.detail.map((d: any) => d?.msg || "Invalid input").join("\n"));
+        setError(e.detail.map((d) => d?.msg || "Invalid input").join("\n"));
       } else {
         setError(e?.detail ?? "Signup failed");
       }
@@ -45,7 +44,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
       <div className="max-w-2xl mx-auto px-4 pt-24">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={() => setMode("login")} className={`text-sm ${mode === "login" ? "text-gray-900 border-b border-gray-900" : "text-gray-600 hover:text-gray-900"}`}>Login</button>

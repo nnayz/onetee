@@ -31,7 +31,7 @@ class UserOut(ORMModel):
     updated_at: datetime
 
 
-# Post
+# Thread
 class MediaItemOut(ORMModel):
     id: UUID
     url: str
@@ -39,13 +39,13 @@ class MediaItemOut(ORMModel):
     alt_text: Optional[str]
 
 
-class PostCreate(BaseModel):
+class ThreadCreate(BaseModel):
     content: str
     in_reply_to_id: Optional[UUID] = None
     media_keys: Optional[List[str]] = None  # object keys already uploaded
 
 
-class PostOut(ORMModel):
+class ThreadOut(ORMModel):
     id: UUID
     author_id: UUID
     content: str
@@ -59,9 +59,10 @@ class AuthorMini(ORMModel):
     id: UUID
     username: str
     display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
-class PostWithAuthorOut(PostOut):
+class ThreadWithAuthorOut(ThreadOut):
     author: AuthorMini
     likes: int = 0
     reposts: int = 0
@@ -69,7 +70,7 @@ class PostWithAuthorOut(PostOut):
 
 
 class ProfileCounts(BaseModel):
-    posts: int
+    threads: int
 
 
 class ProfileOut(ORMModel):
@@ -86,9 +87,9 @@ class ReplyCreate(BaseModel):
     content: str
 
 
-class ThreadOut(BaseModel):
-    post: PostWithAuthorOut
-    replies: List[PostWithAuthorOut] = []
+class ThreadDetailOut(BaseModel):
+    thread: ThreadWithAuthorOut
+    replies: List[ThreadWithAuthorOut] = []
 
 
 # Social actions
@@ -108,7 +109,7 @@ class PresignedUrlResponse(BaseModel):
 
 
 class AttachMediaRequest(BaseModel):
-    post_id: UUID
+    thread_id: UUID
     object_key: str
     media_type: str
     alt_text: Optional[str] = None

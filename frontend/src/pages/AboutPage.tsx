@@ -1,19 +1,13 @@
 import type { FC } from "react";
 import { motion } from "framer-motion";
-import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import ScrollReveal from "@/components/ScrollReveal";
-import Footer from "@/components/Footer";
 
 const AboutPage: FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white text-gray-900 overflow-hidden">
       {/* Hamburger Menu */}
       <HamburgerMenu />
-      
-      
-      {/* Navbar */}
-      <Navbar />
       
       {/* Background pattern */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(0,0,0,0.02)_0%,_transparent_50%)]"></div>
@@ -147,9 +141,6 @@ const AboutPage: FC = () => {
           </div>
         </ScrollReveal>
       </div>
-      
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };

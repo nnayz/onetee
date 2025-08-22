@@ -1,19 +1,19 @@
 from .user import User
-from .post import Post
+from .thread import Thread
 from .social import Like, Repost, Follow, Bookmark
-from .media_hashtag import Media, Hashtag, PostHashtag, Mention
+from .media_hashtag import Media, Hashtag, ThreadHashtag, Mention
 from .notification import Notification
 
 __all__ = [
     "User",
-    "Post",
+    "Thread",
     "Like",
     "Repost",
     "Follow",
     "Bookmark",
     "Media",
     "Hashtag",
-    "PostHashtag",
+    "ThreadHashtag",
     "Mention",
     "Notification",
 ]

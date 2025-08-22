@@ -1,12 +1,10 @@
 import type { FC } from "react";
-import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import ProductGrid from "@/components/ProductGrid";
 import CollectionShowcase from "@/components/CollectionShowcase";
 import ScrollIndicator from "@/components/ScrollIndicator";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import Reviews from "@/components/Reviews";
-import Footer from "@/components/Footer";
 import landingImage from "@/assets/landing page.jpg";
 
 const LandingPage: FC = () => {
@@ -16,9 +14,6 @@ const LandingPage: FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white text-gray-900 overflow-hidden">
       {/* Hamburger Menu */}
       <HamburgerMenu />
-      
-      {/* Navbar */}
-      <Navbar />
       
       {/* Background pattern */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(0,0,0,0.02)_0%,_transparent_50%)]"></div>
@@ -56,9 +51,6 @@ const LandingPage: FC = () => {
           className="mt-20"
         />
       </div>
-      
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };

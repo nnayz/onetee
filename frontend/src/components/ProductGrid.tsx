@@ -19,14 +19,14 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   products,
   className = ""
 }) => {
-  const [fetched, setFetched] = useState<any[]>([]);
+  const [fetched, setFetched] = useState<Array<{ id: number; name: string; price_cents: number; images?: Array<{ url: string }> }>>([]);
   useEffect(() => {
     if (!products) {
       ShopAPI.listProducts({ limit: 8 }).then((data) => setFetched(data));
     }
   }, [products]);
   const displayProducts: Array<{ id: string | number; name: string; price: string; image: string }> = products ||
-    fetched.map((p: any) => ({ id: p.id, name: p.name, price: `₹ ${(p.price_cents/100).toLocaleString()}`, image: p.images?.[0]?.url || "/vite.svg" }));
+    fetched.map((p) => ({ id: p.id, name: p.name, price: `₹ ${(p.price_cents/100).toLocaleString()}`, image: p.images?.[0]?.url || "/vite.svg" }));
 
   return (
     <div className={`py-20 ${className}`}>

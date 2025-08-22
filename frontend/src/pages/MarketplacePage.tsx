@@ -2,37 +2,14 @@ import type { FC } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
-import Footer from "@/components/Footer";
 import { ShopAPI } from "@/lib/api/shop";
-import { formatINR } from "@/lib/utils";
-
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  category: string;
-  description: string;
-  rating: number;
-  reviews: number;
-  isNew?: boolean;
-  isSale?: boolean;
-  isFavorite?: boolean;
-  colors?: string[];
-  sizes?: string[];
-  badge?: string;
-}
 
 const MarketplacePage: FC = () => {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Array<{ gender?: string }>>([]);
   const [sort, setSort] = useState<string>("newest");
-  const [q, setQ] = useState<string>("");
 
   const categories = [
     { id: "ALL", name: "VIEW ALL" },
@@ -42,19 +19,16 @@ const MarketplacePage: FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     ShopAPI.listProducts({ sort }).then((data) => {
       if (!cancelled) setProducts(data);
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true };
   }, [sort]);
 
   const filteredProducts = useMemo(() => {
     if (selectedCategory === "ALL") return products;
-    if (selectedCategory === "WOMAN") return products.filter((p: any) => p.gender === "women");
-    if (selectedCategory === "MAN") return products.filter((p: any) => p.gender === "men");
+    if (selectedCategory === "WOMAN") return products.filter((p) => p.gender === "women");
+    if (selectedCategory === "MAN") return products.filter((p) => p.gender === "men");
     return products;
   }, [products, selectedCategory]);
 
@@ -66,10 +40,7 @@ const MarketplacePage: FC = () => {
     <div className="min-h-screen bg-white">
       {/* Hamburger Menu */}
       <HamburgerMenu />
-      
-      {/* Navbar */}
-      <Navbar />
-      
+
       {/* Header Section */}
       <div className="border-b border-gray-200 pt-16">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
@@ -205,9 +176,6 @@ const MarketplacePage: FC = () => {
           </button>
         </div>
       </div>
-      
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };
