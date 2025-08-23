@@ -8,7 +8,7 @@ from .security import decode_token
 from community.models import User
 
 
-router = APIRouter(prefix="/auth", tags=["Auth"]) 
+router = APIRouter(tags=["Auth"]) 
 service = AuthService()
 
 

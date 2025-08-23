@@ -19,3 +19,8 @@ dependencies = [
     "stripe>=11.3.0",
     "python-multipart>=0.0.20",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]

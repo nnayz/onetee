@@ -1,20 +1,16 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import {
-  IconCamera,
   IconChartBar,
   IconDashboard,
-  IconDatabase,
-  IconFileAi,
-  IconFileDescription,
-  IconFileWord,
-  IconFolder,
-  IconHelp,
   IconInnerShadowTop,
-  IconListDetails,
   IconReport,
-  IconSearch,
   IconSettings,
   IconUsers,
+  IconPackage,
+  IconShoppingCart,
+  IconMessageCircle,
+  IconActivity,
 } from "@tabler/icons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -33,81 +29,86 @@ import {
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
+    name: "OneTee Admin",
+    email: "info@onetee.in",
     avatar: "/avatars/shadcn.jpg",
   },
   navMain: [
     {
       title: "Dashboard",
-      url: "#",
+      url: "/admin/dashboard",
       icon: IconDashboard,
     },
     {
-      title: "Lifecycle",
-      url: "#",
-      icon: IconListDetails,
+      title: "Products",
+      url: "/admin/products",
+      icon: IconPackage,
+    },
+    {
+      title: "Orders",
+      url: "/admin/orders",
+      icon: IconShoppingCart,
+    },
+    {
+      title: "Users",
+      url: "/admin/users",
+      icon: IconUsers,
+    },
+    {
+      title: "Community",
+      url: "/admin/community",
+      icon: IconMessageCircle,
     },
     {
       title: "Analytics",
-      url: "#",
+      url: "/admin/analytics",
       icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: IconUsers,
     },
   ],
   navClouds: [
     {
-      title: "Capture",
-      icon: IconCamera,
+      title: "Product Management",
+      icon: IconPackage,
       isActive: true,
-      url: "#",
+      url: "/admin/products",
       items: [
         {
-          title: "Active Proposals",
-          url: "#",
+          title: "All Products",
+          url: "/admin/products",
         },
         {
-          title: "Archived",
-          url: "#",
+          title: "Add Product",
+          url: "/admin/products/new",
         },
       ],
     },
     {
-      title: "Proposal",
-      icon: IconFileDescription,
-      url: "#",
+      title: "Order Management",
+      icon: IconShoppingCart,
+      url: "/admin/orders",
       items: [
         {
-          title: "Active Proposals",
-          url: "#",
+          title: "All Orders",
+          url: "/admin/orders",
         },
         {
-          title: "Archived",
-          url: "#",
+          title: "Pending Orders",
+          url: "/admin/orders?status=pending",
         },
       ],
     },
     {
-      title: "Prompts",
-      icon: IconFileAi,
-      url: "#",
+      title: "Community",
+      icon: IconMessageCircle,
+      url: "/admin/community",
       items: [
         {
-          title: "Active Proposals",
-          url: "#",
+          title: "All Threads",
+          url: "/admin/community",
         },
         {
-          title: "Archived",
-          url: "#",
+          title: "Community Stats",
+          url: "/admin/community",
         },
       ],
     },
@@ -115,35 +116,35 @@ const data = {
   navSecondary: [
     {
       title: "Settings",
-      url: "#",
+      url: "/admin/settings",
       icon: IconSettings,
     },
     {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
+      title: "Reports",
+      url: "/admin/reports",
+      icon: IconReport,
     },
     {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
+      title: "Activity",
+      url: "/admin/analytics",
+      icon: IconActivity,
     },
   ],
   documents: [
     {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
+      name: "Analytics",
+      url: "/admin/analytics",
+      icon: IconChartBar,
     },
     {
       name: "Reports",
-      url: "#",
+      url: "/admin/reports",
       icon: IconReport,
     },
     {
-      name: "Word Assistant",
-      url: "#",
-      icon: IconFileWord,
+      name: "User Management",
+      url: "/admin/users",
+      icon: IconUsers,
     },
   ],
 }
@@ -158,12 +159,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
+              <Link to="/admin/dashboard">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
-              </a>
+                <span className="text-base font-semibold">OneTee Admin</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
@@ -177,3 +179,4 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     </Sidebar>
   )
 }
+
