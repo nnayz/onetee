@@ -2,34 +2,14 @@ import type { FC } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
-import Footer from "@/components/Footer";
 import { ShopAPI } from "@/lib/api/shop";
-
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  category: string;
-  description: string;
-  rating: number;
-  reviews: number;
-  isNew?: boolean;
-  isSale?: boolean;
-  isFavorite?: boolean;
-  colors?: string[];
-  sizes?: string[];
-  badge?: string;
-}
 
 const MarketplacePage: FC = () => {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Array<{ gender?: string }>>([]);
+  const [sort, setSort] = useState<string>("newest");
 
   const categories = [
     { id: "ALL", name: "VIEW ALL" },
@@ -39,19 +19,16 @@ const MarketplacePage: FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    ShopAPI.listProducts().then((data) => {
+    ShopAPI.listProducts({ sort }).then((data) => {
       if (!cancelled) setProducts(data);
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true };
-  }, []);
+  }, [sort]);
 
   const filteredProducts = useMemo(() => {
     if (selectedCategory === "ALL") return products;
-    if (selectedCategory === "WOMAN") return products.filter((p: any) => p.gender === "women");
-    if (selectedCategory === "MAN") return products.filter((p: any) => p.gender === "men");
+    if (selectedCategory === "WOMAN") return products.filter((p) => p.gender === "women");
+    if (selectedCategory === "MAN") return products.filter((p) => p.gender === "men");
     return products;
   }, [products, selectedCategory]);
 
@@ -63,10 +40,7 @@ const MarketplacePage: FC = () => {
     <div className="min-h-screen bg-white">
       {/* Hamburger Menu */}
       <HamburgerMenu />
-      
-      {/* Navbar */}
-      <Navbar />
-      
+
       {/* Header Section */}
       <div className="border-b border-gray-200 pt-16">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
@@ -108,9 +82,12 @@ const MarketplacePage: FC = () => {
                   {filteredProducts.length} PRODUCT{filteredProducts.length !== 1 ? 'S' : ''}
                 </span>
                 <div className="h-4 w-px bg-gray-200"></div>
-                <button className="text-gray-600 hover:text-gray-900 transition-colors duration-200 font-light tracking-wide">
-                  FILTER
-                </button>
+                <select value={sort} onChange={(e) => setSort(e.target.value)} className="text-gray-600 bg-transparent font-light tracking-wide">
+                  <option value="newest">Newest</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="bestseller">Bestsellers</option>
+                </select>
               </div>
             </div>
             
@@ -185,9 +162,7 @@ const MarketplacePage: FC = () => {
                 
                 {/* Price */}
                 <div className="flex items-center space-x-2 pt-1">
-                  <span className="text-sm font-light text-gray-900">
-                    ₹ {((product.price_cents || 0) / 100).toLocaleString()}
-                  </span>
+                  <span className="text-sm font-light text-gray-900">{formatINR(product.price_cents || 0)}</span>
                 </div>
               </div>
             </motion.div>
@@ -201,9 +176,6 @@ const MarketplacePage: FC = () => {
           </button>
         </div>
       </div>
-      
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };

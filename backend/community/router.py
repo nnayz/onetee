@@ -1,25 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from uuid import UUID
+from typing import List
+from uuid import UUID, uuid4
 
-from database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+
 from auth.deps import get_current_user, get_admin_user
-from .models import *  # noqa: F401,F403
-from .services.community_service import CommunityService
-from .schemas import (
-	PostCreate,
-	PostOut,
-	PostWithAuthorOut,
-	ProfileOut,
-	ReplyCreate,
-	ThreadOut,
-	ActionOut,
-	PresignedUrlRequest,
-	PresignedUrlResponse,
-	AttachMediaRequest,
-	MediaItemOut,
-)
+from auth.schemas import UserInfo
+from database import get_db
 from storage.minio_service import MinioService
+
+from .models import Thread, Like, Repost, User as CommunityUser, Hashtag, ThreadHashtag
+from .schemas import (
+    UserCreate,
+    UserOut,
+    ThreadCreate,
+    ThreadOut,
+    ThreadWithAuthorOut,
+    ProfileOut,
+    ReplyCreate,
+    ThreadDetailOut,
+    ActionOut,
+    PresignedUrlRequest,
+    PresignedUrlResponse,
+    AttachMediaRequest,
+    MediaItemOut,
+    AuthorMini,
+)
+from .services.community_service import CommunityService
 
 router = APIRouter(
 	tags=["OneTee Community"],
@@ -28,120 +36,591 @@ router = APIRouter(
 minio_service = MinioService()
 service = CommunityService()
 
-# Posts
-@router.post("/posts", response_model=PostOut)
-def create_post(payload: PostCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	# Enforce daily post limit for non-verified users (top-level posts only)
+# Threads
+@router.post("/threads", response_model=ThreadOut)
+def create_thread(payload: ThreadCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	# Enforce daily thread limit for non-verified users (top-level threads only)
 	from datetime import datetime, timedelta
-	if not getattr(user, "is_verified", False) and payload.in_reply_to_id is None:
+	if not payload.in_reply_to_id and not user.is_verified:
 		start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 		end = start + timedelta(days=1)
 		from sqlalchemy import select, func
 		count = db.execute(
-			select(func.count(Post.id)).where(
-				Post.author_id == user.id,
-				Post.created_at >= start,
-				Post.created_at < end,
-				Post.in_reply_to_id.is_(None),
+			select(func.count(Thread.id)).where(
+				Thread.author_id == user.id,
+				Thread.created_at >= start,
+				Thread.created_at < end,
+				Thread.in_reply_to_id.is_(None),
 			)
 		).scalar_one() or 0
-		if count >= 10:
-			raise HTTPException(status_code=403, detail="Daily post limit reached. Verify your account to post without limits.")
+		if count >= 5:
+			raise HTTPException(status_code=429, detail="Daily limit reached. Get verified to thread more.")
 	if not payload.content or not payload.content.strip():
 		raise HTTPException(status_code=400, detail="Content required")
-	post = service.create_post(
+	thread = service.create_thread(
 		db,
 		author_id=user.id,
 		content=payload.content,
 		in_reply_to_id=payload.in_reply_to_id,
 	)
-	# Optionally, attach any provided media_keys
 	if payload.media_keys:
 		for key in payload.media_keys:
-			service.attach_media_to_post(db, post_id=post.id, object_key=key, media_type="image", alt_text=None)
-		db.refresh(post)
-	return post
+			service.attach_media_to_thread(db, thread_id=thread.id, object_key=key, media_type="image", alt_text=None)
+		db.refresh(thread)
+	return thread
 
 
 # Social actions
-@router.post("/posts/{post_id}/like", response_model=ActionOut)
-def like_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	service.like_post(db, user_id=user.id, post_id=post_id)
+@router.post("/threads/{thread_id}/like", response_model=ActionOut)
+def like_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	service.like_thread(db, user_id=user.id, thread_id=thread_id)
 	return {"success": True}
 
 
-@router.get("/posts", response_model=list[PostWithAuthorOut])
-def list_posts(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+@router.delete("/threads/{thread_id}/like", response_model=ActionOut)
+def unlike_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	service.unlike_thread(db, user_id=user.id, thread_id=thread_id)
+	return {"success": True}
+
+
+@router.get("/threads", response_model=list[ThreadWithAuthorOut])
+def list_threads(limit: int = 50, offset: int = 0, tag: str | None = None, db: Session = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
 	# newest first with engagement counts
 	from sqlalchemy import select, func
 	from sqlalchemy.orm import joinedload
 	likes_sq = (
-		select(Like.post_id, func.count(Like.id).label("likes")).group_by(Like.post_id).subquery()
+		select(Like.thread_id, func.count(Like.id).label("likes")).group_by(Like.thread_id).subquery()
 	)
 	reposts_sq = (
-		select(Repost.post_id, func.count(Repost.id).label("reposts")).group_by(Repost.post_id).subquery()
+		select(Repost.thread_id, func.count(Repost.id).label("reposts")).group_by(Repost.thread_id).subquery()
 	)
 	replies_sq = (
-		select(Post.in_reply_to_id.label("post_id"), func.count(Post.id).label("replies")).where(Post.in_reply_to_id.is_not(None)).group_by(Post.in_reply_to_id).subquery()
+		select(Thread.in_reply_to_id.label("thread_id"), func.count(Thread.id).label("replies")).where(Thread.in_reply_to_id.is_not(None)).group_by(Thread.in_reply_to_id).subquery()
 	)
 	stmt = (
-		select(Post, func.coalesce(likes_sq.c.likes, 0), func.coalesce(reposts_sq.c.reposts, 0), func.coalesce(replies_sq.c.replies, 0))
-		.options(joinedload(Post.author))
-		.outerjoin(likes_sq, Post.id == likes_sq.c.post_id)
-		.outerjoin(reposts_sq, Post.id == reposts_sq.c.post_id)
-		.outerjoin(replies_sq, Post.id == replies_sq.c.post_id)
-		.order_by(Post.created_at.desc())
-		.offset(offset)
-		.limit(limit)
+		select(Thread, func.coalesce(likes_sq.c.likes, 0), func.coalesce(reposts_sq.c.reposts, 0), func.coalesce(replies_sq.c.replies, 0))
+		.options(joinedload(Thread.author), joinedload(Thread.media_items))
+		.outerjoin(likes_sq, Thread.id == likes_sq.c.thread_id)
+		.outerjoin(reposts_sq, Thread.id == reposts_sq.c.thread_id)
+		.outerjoin(replies_sq, Thread.id == replies_sq.c.thread_id)
 	)
-	rows = db.execute(stmt).all()
+	if tag:
+
+		tag_sq = select(ThreadHashtag.thread_id).join(Hashtag, Hashtag.id == ThreadHashtag.hashtag_id).where(Hashtag.tag == tag).subquery()
+		stmt = stmt.where(Thread.id.in_(tag_sq))
+	stmt = stmt.order_by(Thread.created_at.desc()).offset(offset).limit(limit)
+	rows = db.execute(stmt).unique().all()
 	result: list[dict] = []
-	for post, likes, reposts, replies in rows:
+	for thread, likes, reposts, replies in rows:
+		# Get like/repost status for current user
+		is_liked = db.query(Like).filter(
+			Like.thread_id == thread.id,
+			Like.user_id == current_user.id
+		).first() is not None
+		
+		is_reposted = db.query(Repost).filter(
+			Repost.thread_id == thread.id,
+			Repost.user_id == current_user.id
+		).first() is not None
+		
+		mi = [
+			{"id": m.id, "url": m.url, "media_type": getattr(m, "media_type", "image"), "alt_text": getattr(m, "alt_text", None)}
+			for m in getattr(thread, "media_items", [])
+		]
 		result.append(
 			{
-				"id": post.id,
-				"author_id": post.author_id,
-				"content": post.content,
-				"in_reply_to_id": post.in_reply_to_id,
-				"created_at": post.created_at,
-				"updated_at": post.updated_at,
-				"media_items": [],
+				"id": thread.id,
+				"author_id": thread.author_id,
+				"content": thread.content,
+				"in_reply_to_id": thread.in_reply_to_id,
+				"created_at": thread.created_at,
+				"updated_at": thread.updated_at,
+				"media_items": mi,
 				"author": {
-					"id": post.author.id if post.author else None,
-					"username": post.author.username if post.author else None,
-					"display_name": post.author.display_name if post.author else None,
+					"id": thread.author.id if thread.author else None,
+					"username": thread.author.username if thread.author else None,
+					"display_name": thread.author.display_name if thread.author else None,
+					"avatar_url": thread.author.avatar_url if thread.author else None,
 				},
 				"likes": int(likes or 0),
 				"reposts": int(reposts or 0),
 				"replies": int(replies or 0),
+				"is_liked": is_liked,
+				"is_reposted": is_reposted,
 			}
 		)
 	return result
 
 
-
-@router.post("/posts/{post_id}/repost", response_model=ActionOut)
-def repost_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	service.repost_post(db, user_id=user.id, post_id=post_id)
+@router.post("/threads/{thread_id}/repost", response_model=ActionOut)
+def repost_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	service.repost_thread(db, user_id=user.id, thread_id=thread_id)
 	return {"success": True}
 
 
-@router.post("/posts/{post_id}/bookmark", response_model=ActionOut)
-def bookmark_post(post_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	service.bookmark_post(db, user_id=user.id, post_id=post_id)
+@router.post("/threads/{thread_id}/bookmark", response_model=ActionOut)
+def bookmark_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	service.bookmark_thread(db, user_id=user.id, thread_id=thread_id)
 	return {"success": True}
 
 
-# Follow/Unfollow removed from product requirements
+@router.delete("/threads/{thread_id}", response_model=ActionOut)
+def delete_own_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	from sqlalchemy import delete
+	thread = db.get(Thread, thread_id)
+	if not thread:
+		raise HTTPException(status_code=404, detail="Not found")
+	if thread.author_id != user.id:
+		raise HTTPException(status_code=403, detail="Not allowed")
+	# Cascades remove related rows
+	db.execute(delete(Thread).where(Thread.id == thread_id))
+	db.commit()
+	return {"success": True}
+
+
+@router.get("/profiles/{username}/threads", response_model=list[ThreadWithAuthorOut])
+def profile_threads(username: str, limit: int = 50, offset: int = 0, db: Session = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
+	from sqlalchemy import select, func
+	from sqlalchemy.orm import joinedload
+	subject = db.execute(select(CommunityUser).where(CommunityUser.username == username)).scalar_one_or_none()
+	if not subject:
+		raise HTTPException(status_code=404, detail="User not found")
+	likes_sq = (
+		select(Like.thread_id, func.count(Like.id).label("likes")).group_by(Like.thread_id).subquery()
+	)
+	reposts_sq = (
+		select(Repost.thread_id, func.count(Repost.id).label("reposts")).group_by(Repost.thread_id).subquery()
+	)
+	replies_sq = (
+		select(Thread.in_reply_to_id.label("thread_id"), func.count(Thread.id).label("replies")).where(Thread.in_reply_to_id.is_not(None)).group_by(Thread.in_reply_to_id).subquery()
+	)
+	stmt = (
+		select(Thread, func.coalesce(likes_sq.c.likes, 0), func.coalesce(reposts_sq.c.reposts, 0), func.coalesce(replies_sq.c.replies, 0))
+		.options(joinedload(Thread.author), joinedload(Thread.media_items))
+		.outerjoin(likes_sq, Thread.id == likes_sq.c.thread_id)
+		.outerjoin(reposts_sq, Thread.id == reposts_sq.c.thread_id)
+		.outerjoin(replies_sq, Thread.id == replies_sq.c.thread_id)
+		.where(Thread.author_id == subject.id)
+		.order_by(Thread.created_at.desc())
+		.offset(offset)
+		.limit(limit)
+	)
+	rows = db.execute(stmt).unique().all()
+	result: list[dict] = []
+	for thread, likes, reposts, replies in rows:
+		# Get like/repost status for current user
+		is_liked = db.query(Like).filter(
+			Like.thread_id == thread.id,
+			Like.user_id == current_user.id
+		).first() is not None
+		
+		is_reposted = db.query(Repost).filter(
+			Repost.thread_id == thread.id,
+			Repost.user_id == current_user.id
+		).first() is not None
+		
+		mi = [
+			{"id": m.id, "url": m.url, "media_type": getattr(m, "media_type", "image"), "alt_text": getattr(m, "alt_text", None)}
+			for m in getattr(thread, "media_items", [])
+		]
+		result.append(
+			{
+				"id": thread.id,
+				"author_id": thread.author_id,
+				"content": thread.content,
+				"in_reply_to_id": thread.in_reply_to_id,
+				"created_at": thread.created_at,
+				"updated_at": thread.updated_at,
+				"media_items": mi,
+				"author": {
+					"id": thread.author.id if thread.author else None,
+					"username": thread.author.username if thread.author else None,
+					"display_name": thread.author.display_name if thread.author else None,
+					"avatar_url": thread.author.avatar_url if thread.author else None,
+				},
+				"likes": int(likes or 0),
+				"reposts": int(reposts or 0),
+				"replies": int(replies or 0),
+				"is_liked": is_liked,
+				"is_reposted": is_reposted,
+			}
+		)
+	return result
+
+
+@router.post("/threads/{thread_id}/reply", response_model=ThreadOut)
+def create_reply(thread_id: UUID, payload: ReplyCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	# Replies are not rate-limited for non-verified users
+	if not payload.content or not payload.content.strip():
+		raise HTTPException(status_code=400, detail="Content required")
+	parent = db.get(Thread, thread_id)
+	if not parent:
+		raise HTTPException(status_code=404, detail="Thread not found")
+	return service.create_thread(db, author_id=user.id, content=payload.content, in_reply_to_id=thread_id)
+
+
+@router.get("/threads/{thread_id}", response_model=ThreadWithAuthorOut)
+async def get_thread(
+    thread_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user),
+) -> ThreadWithAuthorOut:
+    """Get a single thread by ID."""
+    stmt = (
+        select(Thread)
+        .options(
+            joinedload(Thread.author),
+            joinedload(Thread.media_items),
+        )
+        .where(Thread.id == thread_id)
+    )
+    
+    result = db.execute(stmt).unique()
+    thread = result.scalars().one_or_none()
+    
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    
+    # Get like/repost status for current user
+    is_liked = db.query(Like).filter(
+        Like.thread_id == thread.id,
+        Like.user_id == current_user.id
+    ).first() is not None
+    
+    is_reposted = db.query(Repost).filter(
+        Repost.thread_id == thread.id,
+        Repost.user_id == current_user.id
+    ).first() is not None
+    
+    # Get counts
+    likes_count = db.query(Like).filter(Like.thread_id == thread.id).count()
+    replies_count = db.query(Thread).filter(Thread.in_reply_to_id == thread.id).count()
+    reposts_count = db.query(Repost).filter(Repost.thread_id == thread.id).count()
+    
+    return ThreadWithAuthorOut(
+        id=thread.id,
+        author_id=thread.author_id,
+        content=thread.content,
+        in_reply_to_id=thread.in_reply_to_id,
+        created_at=thread.created_at,
+        updated_at=thread.updated_at,
+        media_items=[
+            MediaItemOut(
+                id=mi.id,
+                url=mi.url,
+                media_type=mi.media_type,
+                alt_text=mi.alt_text,
+            ) for mi in thread.media_items
+        ] if thread.media_items else [],
+        author=AuthorMini(
+            id=thread.author.id if thread.author else None,
+            username=thread.author.username if thread.author else None,
+            display_name=thread.author.display_name if thread.author else None,
+            avatar_url=thread.author.avatar_url if thread.author else None,
+        ) if thread.author else None,
+        likes=likes_count,
+        replies=replies_count,
+        reposts=reposts_count,
+        is_liked=is_liked,
+        is_reposted=is_reposted,
+    )
+
+
+@router.get("/threads/{thread_id}/detail", response_model=dict)
+async def get_thread_with_replies(
+    thread_id: UUID,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict:
+    """Get a thread with its replies in a single response."""
+    # Get the main thread
+    stmt = (
+        select(Thread)
+        .options(
+            joinedload(Thread.author),
+            joinedload(Thread.media_items),
+        )
+        .where(Thread.id == thread_id)
+    )
+    
+    result = db.execute(stmt).unique()
+    thread = result.scalars().one_or_none()
+    
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    
+    # Get like/repost status for current user
+    is_liked = db.query(Like).filter(
+        Like.thread_id == thread.id,
+        Like.user_id == current_user.id
+    ).first() is not None
+    
+    is_reposted = db.query(Repost).filter(
+        Repost.thread_id == thread.id,
+        Repost.user_id == current_user.id
+    ).first() is not None
+    
+    # Get counts
+    likes_count = db.query(Like).filter(Like.thread_id == thread.id).count()
+    replies_count = db.query(Thread).filter(Thread.in_reply_to_id == thread.id).count()
+    reposts_count = db.query(Repost).filter(Repost.thread_id == thread.id).count()
+    
+    # Get replies
+    replies_stmt = (
+        select(Thread)
+        .options(
+            joinedload(Thread.author),
+            joinedload(Thread.media_items),
+        )
+        .where(Thread.in_reply_to_id == thread_id)
+        .order_by(Thread.created_at.asc())  # Show oldest first for conversation flow
+        .offset(offset)
+        .limit(limit)
+    )
+    
+    replies_result = db.execute(replies_stmt).unique()
+    replies = replies_result.scalars().all()
+    
+    # Process replies
+    processed_replies = []
+    for reply in replies:
+        # Get like/repost status for current user
+        reply_is_liked = db.query(Like).filter(
+            Like.thread_id == reply.id,
+            Like.user_id == current_user.id
+        ).first() is not None
+        
+        reply_is_reposted = db.query(Repost).filter(
+            Repost.thread_id == reply.id,
+            Repost.user_id == current_user.id
+        ).first() is not None
+        
+        # Get counts for reply
+        reply_likes_count = db.query(Like).filter(Like.thread_id == reply.id).count()
+        reply_replies_count = db.query(Thread).filter(Thread.in_reply_to_id == reply.id).count()
+        reply_reposts_count = db.query(Repost).filter(Repost.thread_id == reply.id).count()
+        
+        processed_replies.append({
+            "id": str(reply.id),
+            "author_id": str(reply.author_id),
+            "content": reply.content,
+            "in_reply_to_id": str(reply.in_reply_to_id) if reply.in_reply_to_id else None,
+            "created_at": reply.created_at.isoformat(),
+            "updated_at": reply.updated_at.isoformat(),
+            "media_items": [
+                {
+                    "id": str(mi.id),
+                    "url": mi.url,
+                    "media_type": mi.media_type,
+                    "alt_text": mi.alt_text,
+                } for mi in reply.media_items
+            ] if reply.media_items else [],
+            "author": {
+                "id": str(reply.author.id) if reply.author else None,
+                "username": reply.author.username if reply.author else None,
+                "display_name": reply.author.display_name if reply.author else None,
+                "avatar_url": reply.author.avatar_url if reply.author else None,
+            } if reply.author else None,
+            "likes": reply_likes_count,
+            "replies": reply_replies_count,
+            "reposts": reply_reposts_count,
+            "is_liked": reply_is_liked,
+            "is_reposted": reply_is_reposted,
+        })
+    
+    return {
+        "thread": {
+            "id": str(thread.id),
+            "author_id": str(thread.author_id),
+            "content": thread.content,
+            "in_reply_to_id": str(thread.in_reply_to_id) if thread.in_reply_to_id else None,
+            "created_at": thread.created_at.isoformat(),
+            "updated_at": thread.updated_at.isoformat(),
+            "media_items": [
+                {
+                    "id": str(mi.id),
+                    "url": mi.url,
+                    "media_type": mi.media_type,
+                    "alt_text": mi.alt_text,
+                } for mi in thread.media_items
+            ] if thread.media_items else [],
+            "author": {
+                "id": str(thread.author.id) if thread.author else None,
+                "username": thread.author.username if thread.author else None,
+                "display_name": thread.author.display_name if thread.author else None,
+                "avatar_url": thread.author.avatar_url if thread.author else None,
+            } if thread.author else None,
+            "likes": likes_count,
+            "replies": replies_count,
+            "reposts": reposts_count,
+            "is_liked": is_liked,
+            "is_reposted": is_reposted,
+        },
+        "replies": processed_replies,
+    }
+
+
+@router.get("/threads/{thread_id}/replies", response_model=List[ThreadWithAuthorOut])
+async def get_thread_replies(
+    thread_id: UUID,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user),
+) -> List[ThreadWithAuthorOut]:
+    """Get replies to a specific thread."""
+    stmt = (
+        select(Thread)
+        .options(
+            joinedload(Thread.author),
+            joinedload(Thread.media_items),
+        )
+        .where(Thread.in_reply_to_id == thread_id)
+        .order_by(Thread.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    
+    result = db.execute(stmt)
+    threads = result.scalars().all()
+    
+    threads_with_authors = []
+    for thread in threads:
+        # Get like/repost status for current user
+        is_liked = db.query(Like).filter(
+            Like.thread_id == thread.id,
+            Like.user_id == current_user.id
+        ).first() is not None
+        
+        is_reposted = db.query(Repost).filter(
+            Repost.thread_id == thread.id,
+            Repost.user_id == current_user.id
+        ).first() is not None
+        
+        # Get counts
+        likes_count = db.query(Like).filter(Like.thread_id == thread.id).count()
+        replies_count = db.query(Thread).filter(Thread.in_reply_to_id == thread.id).count()
+        reposts_count = db.query(Repost).filter(Repost.thread_id == thread.id).count()
+        
+        threads_with_authors.append(ThreadWithAuthorOut(
+            id=thread.id,
+            author_id=thread.author_id,
+            content=thread.content,
+            in_reply_to_id=thread.in_reply_to_id,
+            created_at=thread.created_at,
+            updated_at=thread.updated_at,
+            media_items=[
+                MediaItemOut(
+                    id=mi.id,
+                    url=mi.url,
+                    media_type=mi.media_type,
+                    alt_text=mi.alt_text,
+                ) for mi in thread.media_items
+            ] if thread.media_items else [],
+            author=AuthorMini(
+                id=thread.author.id if thread.author else None,
+                username=thread.author.username if thread.author else None,
+                display_name=thread.author.display_name if thread.author else None,
+                avatar_url=thread.author.avatar_url if thread.author else None,
+            ) if thread.author else None,
+            likes=likes_count,
+            replies=replies_count,
+            reposts=reposts_count,
+            is_liked=is_liked,
+            is_reposted=is_reposted,
+        ))
+    
+    return threads_with_authors
+
+
+@router.post("/media/presign", response_model=PresignedUrlResponse)
+def create_presigned_media_url(req: PresignedUrlRequest):
+	minio_service.ensure_all_buckets()
+	bucket = minio_service.get_bucket_for("thread")
+	object_key = f"uploads/{req.filename}"
+	url = minio_service.presign_put(bucket, object_key)
+	return PresignedUrlResponse(url=url, object_key=object_key)
+
+
+@router.post("/media/attach", response_model=MediaItemOut)
+def attach_media(req: AttachMediaRequest, db: Session = Depends(get_db)):
+	media = service.attach_media_to_thread(
+		db,
+		thread_id=req.thread_id,
+		object_key=req.object_key,
+		media_type=req.media_type,
+		alt_text=req.alt_text,
+	)
+	return media
+
+
+@router.get("/trending", response_model=list[dict])
+def trending_hashtags(limit: int = 10, db: Session = Depends(get_db)):
+	from sqlalchemy import select, func
+	stmt = (
+		select(Hashtag.tag, func.count(ThreadHashtag.id).label("count"))
+		.join(ThreadHashtag, ThreadHashtag.hashtag_id == Hashtag.id)
+		.group_by(Hashtag.id)
+		.order_by(func.count(ThreadHashtag.id).desc())
+		.limit(limit)
+	)
+	rows = db.execute(stmt).all()
+	return [{"tag": tag, "count": count} for tag, count in rows]
+
+
+# Admin moderation
+@router.delete("/admin/threads/{thread_id}", response_model=ActionOut)
+def admin_delete_thread(thread_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+	from sqlalchemy import delete
+	db.execute(delete(Thread).where(Thread.id == thread_id))
+	db.commit()
+	return {"success": True}
+
+
+@router.delete("/admin/users/{user_id}")
+def admin_delete_user(user_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+	from sqlalchemy import delete
+	# Deleting user will cascade to threads and relations
+	db.execute(delete(CommunityUser).where(CommunityUser.id == user_id))
+	db.commit()
+	return {"success": True}
+
+
+@router.post("/profiles/me/avatar/presign", response_model=PresignedUrlResponse)
+def presign_avatar(file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Generate a presigned URL so the client can upload the avatar directly to MinIO.
+    Returns both url and object_key.
+    """
+    minio_service.ensure_all_buckets()
+    bucket = minio_service.get_bucket_for("avatar")
+    ext = minio_service.pick_image_extension(file.filename, file.content_type)
+    object_key = f"avatars/{user.id}/{uuid4().hex}.{ext}"
+    url = minio_service.presign_put(bucket, object_key)
+    return PresignedUrlResponse(url=url, object_key=object_key)
+
+
+@router.post("/profiles/me/avatar/attach")
+def attach_avatar(req: AttachMediaRequest, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Finalize an avatar upload by saving the public URL to the user's profile."""
+    bucket = minio_service.get_bucket_for("avatar")
+    public_url = minio_service.build_public_url(bucket=bucket, object_key=req.object_key)
+    subject = db.get(CommunityUser, user.id)
+    if not subject:
+        raise HTTPException(status_code=404, detail="User not found")
+    subject.avatar_url = public_url
+    db.commit()
+    return {"avatar_url": public_url}
 
 
 @router.get("/profiles/{username}", response_model=ProfileOut)
 def get_profile(username: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
 	from sqlalchemy import select, func
-	subject = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
+	subject = db.execute(select(CommunityUser).where(CommunityUser.username == username)).scalar_one_or_none()
 	if not subject:
 		raise HTTPException(status_code=404, detail="User not found")
-	posts_count = db.execute(select(func.count(Post.id)).where(Post.author_id == subject.id)).scalar_one() or 0
+	threads_count = db.execute(select(func.count(Thread.id)).where(Thread.author_id == subject.id)).scalar_one() or 0
 	return {
 		"id": subject.id,
 		"username": subject.username,
@@ -149,96 +628,15 @@ def get_profile(username: str, db: Session = Depends(get_db), user=Depends(get_c
 		"bio": subject.bio,
 		"avatar_url": subject.avatar_url,
 		"created_at": subject.created_at,
-		"counts": {"posts": posts_count},
+		"counts": {"threads": threads_count},
 	}
-
-
-@router.get("/profiles/{username}/posts", response_model=list[PostWithAuthorOut])
-def profile_posts(username: str, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
-	from sqlalchemy import select, func
-	from sqlalchemy.orm import joinedload
-	subject = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
-	if not subject:
-		raise HTTPException(status_code=404, detail="User not found")
-	likes_sq = (
-		select(Like.post_id, func.count(Like.id).label("likes")).group_by(Like.post_id).subquery()
-	)
-	reposts_sq = (
-		select(Repost.post_id, func.count(Repost.id).label("reposts")).group_by(Repost.post_id).subquery()
-	)
-	replies_sq = (
-		select(Post.in_reply_to_id.label("post_id"), func.count(Post.id).label("replies")).where(Post.in_reply_to_id.is_not(None)).group_by(Post.in_reply_to_id).subquery()
-	)
-	stmt = (
-		select(Post, func.coalesce(likes_sq.c.likes, 0), func.coalesce(reposts_sq.c.reposts, 0), func.coalesce(replies_sq.c.replies, 0))
-		.options(joinedload(Post.author))
-		.outerjoin(likes_sq, Post.id == likes_sq.c.post_id)
-		.outerjoin(reposts_sq, Post.id == reposts_sq.c.post_id)
-		.outerjoin(replies_sq, Post.id == replies_sq.c.post_id)
-		.where(Post.author_id == subject.id)
-		.order_by(Post.created_at.desc())
-		.offset(offset)
-		.limit(limit)
-	)
-	rows = db.execute(stmt).all()
-	result: list[dict] = []
-	for post, likes, reposts, replies in rows:
-		result.append(
-			{
-				"id": post.id,
-				"author_id": post.author_id,
-				"content": post.content,
-				"in_reply_to_id": post.in_reply_to_id,
-				"created_at": post.created_at,
-				"updated_at": post.updated_at,
-				"media_items": [],
-				"author": {
-					"id": post.author.id if post.author else None,
-					"username": post.author.username if post.author else None,
-					"display_name": post.author.display_name if post.author else None,
-				},
-				"likes": int(likes or 0),
-				"reposts": int(reposts or 0),
-				"replies": int(replies or 0),
-			}
-		)
-	return result
-
-
-@router.post("/posts/{post_id}/reply", response_model=PostOut)
-def create_reply(post_id: UUID, payload: ReplyCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-	# Replies are not rate-limited for non-verified users
-	from datetime import datetime, timedelta
-	# no daily limit check here
-	if not payload.content or not payload.content.strip():
-		raise HTTPException(status_code=400, detail="Content required")
-	parent = db.get(Post, post_id)
-	if not parent:
-		raise HTTPException(status_code=404, detail="Post not found")
-	return service.create_post(db, author_id=user.id, content=payload.content, in_reply_to_id=post_id)
-
-
-@router.get("/posts/{post_id}", response_model=ThreadOut)
-def get_thread(post_id: UUID, db: Session = Depends(get_db)):
-	from sqlalchemy import select
-	from sqlalchemy.orm import joinedload
-	post = db.get(Post, post_id)
-	if not post:
-		raise HTTPException(status_code=404, detail="Not found")
-	stmt = (
-		select(Post)
-		.options(joinedload(Post.author))
-		.where(Post.in_reply_to_id == post_id)
-		.order_by(Post.created_at.asc())
-	)
-	replies = db.execute(stmt).scalars().all()
-	return {"post": post, "replies": replies}
 
 
 @router.get("/activity/recent")
 def recent_activity(db: Session = Depends(get_db), user=Depends(get_current_user)):
 	from sqlalchemy import select
 	from sqlalchemy.orm import joinedload
+	from .models import Notification
 	stmt = (
 		select(Notification)
 		.options(joinedload(Notification.actor))
@@ -251,72 +649,14 @@ def recent_activity(db: Session = Depends(get_db), user=Depends(get_current_user
 		{
 			"id": n.id,
 			"type": n.type,
-			"post_id": n.post_id,
+			"thread_id": n.thread_id,
 			"actor": {
 				"id": n.actor.id if n.actor else None,
 				"username": n.actor.username if n.actor else None,
 				"display_name": getattr(n.actor, "display_name", None) if n.actor else None,
+				"avatar_url": getattr(n.actor, "avatar_url", None) if n.actor else None,
 			},
 			"created_at": n.created_at,
 		}
 		for n in notes
 	]
-
-
-# MinIO media
-@router.post("/media/presign", response_model=PresignedUrlResponse)
-def create_presigned_media_url(req: PresignedUrlRequest):
-	minio_service.ensure_all_buckets()
-	bucket = minio_service.get_bucket_for("post")
-	object_key = f"uploads/{req.filename}"
-	url = minio_service.presign_put(bucket, object_key)
-	return PresignedUrlResponse(url=url, object_key=object_key)
-
-
-@router.post("/media/attach", response_model=MediaItemOut)
-def attach_media(req: AttachMediaRequest, db: Session = Depends(get_db)):
-	media = service.attach_media_to_post(
-		db,
-		post_id=req.post_id,
-		object_key=req.object_key,
-		media_type=req.media_type,
-		alt_text=req.alt_text,
-	)
-	return media
-
-
-
-# "Who to follow" removed from product requirements
-
-
-@router.get("/trending/tags")
-def trending_tags(db: Session = Depends(get_db), limit: int = 10):
-	from sqlalchemy import select, func
-	stmt = (
-		select(Hashtag.tag, func.count(PostHashtag.id).label("count"))
-		.join(PostHashtag, PostHashtag.hashtag_id == Hashtag.id)
-		.group_by(Hashtag.id)
-		.order_by(func.count(PostHashtag.id).desc())
-		.limit(limit)
-	)
-	rows = db.execute(stmt).all()
-	return [{"tag": tag, "count": int(count or 0)} for tag, count in rows]
-
-
-# Admin moderation
-@router.delete("/admin/posts/{post_id}")
-def admin_delete_post(post_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
-	from sqlalchemy import delete
-	db.execute(delete(Post).where(Post.id == post_id))
-	db.commit()
-	return {"success": True}
-
-
-@router.delete("/admin/users/{user_id}")
-def admin_delete_user(user_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
-	from sqlalchemy import delete
-	# Deleting user will cascade to posts and relations
-	db.execute(delete(User).where(User.id == user_id))
-	db.commit()
-	return {"success": True}
-

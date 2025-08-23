@@ -16,8 +16,8 @@ class Notification(Base):
     actor_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="SET NULL"), nullable=True, index=True)
     # simple type system: like, repost, reply, follow, mention
     type = Column(String(24), nullable=False)
-    # optional reference to a post involved in the notification
-    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="SET NULL"), nullable=True, index=True)
+    # optional reference to a thread involved in the notification
+    thread_id = Column(UUID(as_uuid=True), ForeignKey("community_threads.id", ondelete="SET NULL"), nullable=True, index=True)
     message = Column(Text, nullable=True)
     is_read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

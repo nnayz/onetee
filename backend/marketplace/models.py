@@ -36,6 +36,7 @@ class Product(Base):
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
     variants = relationship("ProductVariant", back_populates="product", cascade="all, delete-orphan")
     tags = relationship("ProductTagLink", back_populates="product", cascade="all, delete-orphan")
+    collections = relationship("ProductCollectionLink", back_populates="product", cascade="all, delete-orphan")
 
 
 class ProductImage(Base):
@@ -79,6 +80,32 @@ class ProductTagLink(Base):
     tag = relationship("ProductTag", back_populates="products")
     __table_args__ = (
         UniqueConstraint("product_id", "tag_id", name="uq_product_tag"),
+    )
+
+
+class Collection(Base):
+    __tablename__ = "shop_collections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(120), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    products = relationship("ProductCollectionLink", back_populates="collection", cascade="all, delete-orphan")
+
+
+class ProductCollectionLink(Base):
+    __tablename__ = "shop_product_collections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("shop_products.id", ondelete="CASCADE"), nullable=False, index=True)
+    collection_id = Column(UUID(as_uuid=True), ForeignKey("shop_collections.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    product = relationship("Product", back_populates="collections")
+    collection = relationship("Collection", back_populates="products")
+    __table_args__ = (
+        UniqueConstraint("product_id", "collection_id", name="uq_product_collection"),
     )
 
 

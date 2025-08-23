@@ -1,9 +1,7 @@
 import type { FC } from "react";
 import { motion } from "framer-motion";
-import Navbar from "@/components/Navbar";
 import HamburgerMenu from "@/components/HamburgerMenu";
 import ScrollReveal from "@/components/ScrollReveal";
-import Footer from "@/components/Footer";
 
 const AboutPage: FC = () => {
   return (
@@ -11,15 +9,11 @@ const AboutPage: FC = () => {
       {/* Hamburger Menu */}
       <HamburgerMenu />
       
-      
-      {/* Navbar */}
-      <Navbar />
-      
       {/* Background pattern */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(0,0,0,0.02)_0%,_transparent_50%)]"></div>
       
       {/* Main content */}
-      <div className="relative z-10 pt-24 pb-16 px-8 lg:px-16 max-w-7xl mx-auto">
+              <div className="relative z-10 pb-16 px-8 lg:px-16 max-w-7xl mx-auto">
         
         {/* Hero Section */}
         <motion.div
@@ -147,9 +141,6 @@ const AboutPage: FC = () => {
           </div>
         </ScrollReveal>
       </div>
-      
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };

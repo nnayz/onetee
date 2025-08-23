@@ -33,7 +33,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     # Relationships
-    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
+    threads = relationship("Thread", back_populates="author", cascade="all, delete-orphan")
     likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
     reposts = relationship("Repost", back_populates="user", cascade="all, delete-orphan")
     bookmarks = relationship("Bookmark", back_populates="user", cascade="all, delete-orphan")

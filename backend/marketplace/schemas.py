@@ -62,6 +62,18 @@ class ProductOut(ORMModel):
     images: List[ProductImageOut] = []
     variants: List[ProductVariantOut] = []
     tag_names: List[str] = []
+    collection_names: List[str] = []
+
+
+class CollectionCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class CollectionOut(ORMModel):
+    id: UUID
+    name: str
+    description: Optional[str]
 
 
 class CartItem(BaseModel):

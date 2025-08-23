@@ -1,4 +1,5 @@
-import { ReactNode, useEffect } from "react";
+import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { AuthAPI } from "@/lib/api/auth";

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, status
 import os
 from sqlalchemy.orm import Session
 
@@ -6,38 +6,31 @@ from database import get_db
 from .security import decode_token
 from community.models import User
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 COOKIE_NAME = "access_token"
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    # Prefer Authorization header; fallback to cookie
-    auth_header = request.headers.get("Authorization")
-    token = None
-    if auth_header and auth_header.lower().startswith("bearer "):
-        token = auth_header.split(" ", 1)[1].strip()
+    # Cookie-only auth: read JWT from HttpOnly cookie
+    token = request.cookies.get(COOKIE_NAME)
     if not token:
-        token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = decode_token(token)
         user_id = payload.get("sub")
         user = db.get(User, user_id)
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid user")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user")
         return user
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 
 def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
-    auth_header = request.headers.get("Authorization")
-    token = None
-    if auth_header and auth_header.lower().startswith("bearer "):
-        token = auth_header.split(" ", 1)[1].strip()
-    if not token:
-        token = request.cookies.get(COOKIE_NAME)
+    token = request.cookies.get(COOKIE_NAME)
     if not token:
         return None
     try:
@@ -49,19 +42,12 @@ def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User |
         return None
 
 
-def get_admin_user(request: Request, db: Session = Depends(get_db)) -> User:
-    user = get_current_user(request, db)
+def get_admin_user(username: str, password: str) -> bool:
     # Allow either configured admin identity or is_admin flag
     admin_username = os.getenv("ADMIN_USERNAME")
-    admin_email = os.getenv("ADMIN_EMAIL")
-    allowed = False
-    if getattr(user, "is_admin", False):
-        allowed = True
-    if admin_username and user.username == admin_username:
-        allowed = True
-    if admin_email and getattr(user, "email", None) == admin_email:
-        allowed = True
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    allowed = admin_username and username == admin_username and admin_password and password == admin_password
     if not allowed:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return allowed
 

@@ -21,7 +21,7 @@ const CollectionShowcase: React.FC<CollectionShowcaseProps> = ({
   collections,
   className = ""
 }) => {
-  const [tags, setTags] = useState<any[]>([]);
+  const [tags, setTags] = useState<Array<{ id: number; name: string }>>([]);
   useEffect(() => {
     if (!collections) {
       ShopAPI.listTags().then(setTags).catch(() => setTags([]));

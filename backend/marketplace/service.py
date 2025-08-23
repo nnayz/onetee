@@ -10,14 +10,31 @@ from .models import Product, ProductImage, ProductVariant, ProductTag, ProductTa
 
 
 class MarketplaceService:
-    def list_products(self, db: Session, *, gender: str | None = None, tag: str | None = None, limit: int = 50, offset: int = 0) -> List[Product]:
-        stmt = select(Product).where(Product.is_active == True).order_by(Product.created_at.desc()).offset(offset).limit(limit)
+    def list_products(self, db: Session, *, gender: str | None = None, tag: str | None = None, collection: str | None = None, sort: str | None = None, limit: int = 50, offset: int = 0) -> List[Product]:
+        from sqlalchemy import desc, asc
+        stmt = select(Product).where(Product.is_active == True).offset(offset).limit(limit)
         if gender in {"men", "women"}:
             stmt = stmt.where(Product.gender == gender)
         if tag:
             from sqlalchemy import exists
             tag_subq = select(ProductTagLink.product_id).join(ProductTag, ProductTag.id == ProductTagLink.tag_id).where(ProductTag.name == tag)
             stmt = stmt.where(Product.id.in_(tag_subq))
+        if collection:
+            from .models import Collection, ProductCollectionLink
+            col_subq = select(ProductCollectionLink.product_id).join(Collection, Collection.id == ProductCollectionLink.collection_id).where(Collection.name == collection)
+            stmt = stmt.where(Product.id.in_(col_subq))
+        # sorting: newest|price_asc|price_desc|bestseller
+        if sort == "price_asc":
+            stmt = stmt.order_by(asc(Product.price_cents), desc(Product.created_at))
+        elif sort == "price_desc":
+            stmt = stmt.order_by(desc(Product.price_cents), desc(Product.created_at))
+        elif sort == "bestseller":
+            # naive bestseller: products with most order items
+            from sqlalchemy import func
+            items_count = select(OrderItem.product_id, func.count(OrderItem.id).label("cnt")).group_by(OrderItem.product_id).subquery()
+            stmt = stmt.outerjoin(items_count, items_count.c.product_id == Product.id).order_by(desc(items_count.c.cnt.nullslast()), desc(Product.created_at))
+        else:
+            stmt = stmt.order_by(desc(Product.created_at))
         return db.execute(stmt).scalars().all()
 
     def create_tag(self, db: Session, *, name: str, description: str | None) -> ProductTag:
@@ -34,7 +51,9 @@ class MarketplaceService:
         return db.execute(select(ProductTag).order_by(ProductTag.name.asc())).scalars().all()
 
     def create_product(self, db: Session, *, sku: str, name: str, description: str | None, gender: str, price_cents: int, currency: str, image_urls: List[str], sizes: List[str], colors: List[str], tags: List[str]) -> Product:
-        product = Product(sku=sku, name=name, description=description, gender=gender, price_cents=price_cents, currency=currency)
+        # Enforce INR as currency regardless of input
+        currency_enforced = "INR"
+        product = Product(sku=sku, name=name, description=description, gender=gender, price_cents=price_cents, currency=currency_enforced)
         db.add(product)
         db.flush()
         for idx, url in enumerate(image_urls):
@@ -65,9 +84,35 @@ class MarketplaceService:
         db.commit()
         return True
 
+    def search_products(self, db: Session, *, query: str, limit: int = 50, offset: int = 0) -> List[Product]:
+        from sqlalchemy import or_
+        # Simple ILIKE-based search over name, description, and associated tag names
+        stmt = (
+            select(Product)
+            .where(Product.is_active == True)
+            .order_by(Product.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        if query:
+            pattern = f"%{query}%"
+            tag_subq = (
+                select(ProductTagLink.product_id)
+                .join(ProductTag, ProductTag.id == ProductTagLink.tag_id)
+                .where(ProductTag.name.ilike(pattern))
+            )
+            stmt = stmt.where(
+                or_(
+                    Product.name.ilike(pattern),
+                    Product.description.ilike(pattern),
+                    Product.id.in_(tag_subq),
+                )
+            )
+        return db.execute(stmt).scalars().all()
+
     def create_order(self, db: Session, *, user_id: UUID | None, items: list[tuple[UUID, UUID | None, int]]) -> Order:
         # items: list of (product_id, variant_id, quantity)
-        order = Order(user_id=user_id, status="pending")
+        order = Order(user_id=user_id, status="pending", currency="INR")  # Enforce INR currency
         db.add(order)
         db.flush()
         total_cents = 0

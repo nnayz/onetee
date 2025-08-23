@@ -9,35 +9,35 @@ from database import Base
 
 
 class Like(Base):
-    __tablename__ = "community_likes"
+	__tablename__ = "community_likes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="CASCADE"), nullable=False, index=True)
-    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+	id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+	user_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="CASCADE"), nullable=False, index=True)
+	thread_id = Column(UUID(as_uuid=True), ForeignKey("community_threads.id", ondelete="CASCADE"), nullable=False, index=True)
+	created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
-    user = relationship("User", back_populates="likes")
-    post = relationship("Post", back_populates="likes")
+	user = relationship("User", back_populates="likes")
+	thread = relationship("Thread", back_populates="likes")
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "post_id", name="uq_like_user_post"),
-    )
+	__table_args__ = (
+		UniqueConstraint("user_id", "thread_id", name="uq_like_user_thread"),
+	)
 
 
 class Repost(Base):
-    __tablename__ = "community_reposts"
+	__tablename__ = "community_reposts"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="CASCADE"), nullable=False, index=True)
-    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+	id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+	user_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="CASCADE"), nullable=False, index=True)
+	thread_id = Column(UUID(as_uuid=True), ForeignKey("community_threads.id", ondelete="CASCADE"), nullable=False, index=True)
+	created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
-    user = relationship("User", back_populates="reposts")
-    post = relationship("Post", back_populates="reposts")
+	user = relationship("User", back_populates="reposts")
+	thread = relationship("Thread", back_populates="reposts")
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "post_id", name="uq_repost_user_post"),
-    )
+	__table_args__ = (
+		UniqueConstraint("user_id", "thread_id", name="uq_repost_user_thread"),
+	)
 
 
 class Follow(Base):
@@ -57,17 +57,17 @@ class Follow(Base):
 
 
 class Bookmark(Base):
-    __tablename__ = "community_bookmarks"
+	__tablename__ = "community_bookmarks"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="CASCADE"), nullable=False, index=True)
-    post_id = Column(UUID(as_uuid=True), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+	id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+	user_id = Column(UUID(as_uuid=True), ForeignKey("community_users.id", ondelete="CASCADE"), nullable=False, index=True)
+	thread_id = Column(UUID(as_uuid=True), ForeignKey("community_threads.id", ondelete="CASCADE"), nullable=False, index=True)
+	created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
-    user = relationship("User", back_populates="bookmarks")
-    post = relationship("Post", back_populates="bookmarks")
+	user = relationship("User", back_populates="bookmarks")
+	thread = relationship("Thread", back_populates="bookmarks")
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "post_id", name="uq_bookmark_user_post"),
-    )
+	__table_args__ = (
+		UniqueConstraint("user_id", "thread_id", name="uq_bookmark_user_thread"),
+	)
 
