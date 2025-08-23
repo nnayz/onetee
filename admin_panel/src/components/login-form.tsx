@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/contexts/useAuth"
 import { useState } from "react"
 
 export function LoginForm({
@@ -50,6 +50,7 @@ export function LoginForm({
             placeholder="admin" 
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            className="rounded-none"
             required 
           />
         </div>
@@ -60,10 +61,11 @@ export function LoginForm({
             type="password" 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="rounded-none"
             required 
           />
         </div>
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full rounded-none" disabled={isLoading}>
           {isLoading ? "Logging in..." : "Login"}
         </Button>
       </div>

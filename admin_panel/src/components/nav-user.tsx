@@ -6,7 +6,7 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/contexts/useAuth"
 
 import {
   Avatar,
@@ -26,8 +26,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/components/ui/sidebar"
+import { useSidebar } from "@/components/ui/useSidebar"
 
 export function NavUser({
   user,

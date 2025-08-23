@@ -10,8 +10,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useCreateTag, useCreateCollection } from '@/hooks/useAdminQueries'
-import { IconPlus } from '@tabler/icons-react'
+import { tagsAPI, collectionsAPI } from '@/app/api'
+
 
 interface QuickCreateDialogProps {
   children: React.ReactNode
@@ -22,20 +22,21 @@ export function QuickCreateDialog({ children }: QuickCreateDialogProps) {
   const [activeTab, setActiveTab] = useState<'tag' | 'collection'>('tag')
   const [tagData, setTagData] = useState({ name: '', description: '' })
   const [collectionData, setCollectionData] = useState({ name: '', description: '' })
-
-  const createTag = useCreateTag()
-  const createCollection = useCreateCollection()
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleCreateTag = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!tagData.name.trim()) return
 
     try {
-      await createTag.mutateAsync(tagData)
+      setIsLoading(true)
+      await tagsAPI.createTag(tagData)
       setTagData({ name: '', description: '' })
       setIsOpen(false)
     } catch (error) {
       console.error('Failed to create tag:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -44,11 +45,14 @@ export function QuickCreateDialog({ children }: QuickCreateDialogProps) {
     if (!collectionData.name.trim()) return
 
     try {
-      await createCollection.mutateAsync(collectionData)
+      setIsLoading(true)
+      await collectionsAPI.createCollection(collectionData)
       setCollectionData({ name: '', description: '' })
       setIsOpen(false)
     } catch (error) {
       console.error('Failed to create collection:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -113,9 +117,9 @@ export function QuickCreateDialog({ children }: QuickCreateDialogProps) {
               </Button>
               <Button
                 type="submit"
-                disabled={createTag.isPending || !tagData.name.trim()}
+                disabled={isLoading || !tagData.name.trim()}
               >
-                {createTag.isPending ? 'Creating...' : 'Create Tag'}
+                {isLoading ? 'Creating...' : 'Create Tag'}
               </Button>
             </div>
           </form>
@@ -150,9 +154,9 @@ export function QuickCreateDialog({ children }: QuickCreateDialogProps) {
               </Button>
               <Button
                 type="submit"
-                disabled={createCollection.isPending || !collectionData.name.trim()}
+                disabled={isLoading || !collectionData.name.trim()}
               >
-                {createCollection.isPending ? 'Creating...' : 'Create Collection'}
+                {isLoading ? 'Creating...' : 'Create Collection'}
               </Button>
             </div>
           </form>
