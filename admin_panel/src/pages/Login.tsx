@@ -1,8 +1,58 @@
 import { GalleryVerticalEnd } from "lucide-react"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 import { LoginForm } from "@/components/login-form"
+import { useAuth } from "@/contexts/AuthContext"
+
+import cover from "@/assets/cover.png"
 
 export default function LoginPage() {
+  const navigate = useNavigate()
+  const { isAuthenticated, isLoading } = useAuth()
+
+  useEffect(() => {
+    // Redirect to dashboard if already authenticated
+    if (isAuthenticated && !isLoading) {
+      navigate("/dashboard")
+    }
+  }, [isAuthenticated, isLoading, navigate])
+
+  const handleLoginSuccess = () => {
+    navigate("/dashboard") // Redirect to dashboard after successful login
+  }
+
+  // Show loading spinner while checking authentication
+  if (isLoading) {
+    return (
+      <div className="grid min-h-svh lg:grid-cols-2">
+        <div className="flex flex-col gap-4 p-6 md:p-10">
+          <div className="flex justify-center gap-2 md:justify-start">
+            <a href="#" className="flex items-center gap-2 font-medium">
+              <div className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
+                <GalleryVerticalEnd className="size-4" />
+              </div>
+              OneTee Admin
+            </a>
+          </div>
+          <div className="flex flex-1 items-center justify-center">
+            <div className="w-full max-w-xs text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Checking authentication...</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-muted relative hidden lg:block">
+          <img
+            src={cover}
+            alt="Image"
+            className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale border-2 border-black"
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -16,15 +66,15 @@ export default function LoginPage() {
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm />
+            <LoginForm onLoginSuccess={handleLoginSuccess} />
           </div>
         </div>
       </div>
       <div className="bg-muted relative hidden lg:block">
         <img
-          src="/placeholder.svg"
+          src={cover}
           alt="Image"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale border-2 border-black"
         />
       </div>
     </div>

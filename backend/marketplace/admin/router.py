@@ -1,7 +1,9 @@
 from typing import List
 from uuid import UUID
+import os
+import base64
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Response, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -13,36 +15,64 @@ from ..models import Product, ProductTag, ProductTagLink, Collection, ProductCol
 from storage.minio_service import MinioService
 
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(tags=["MarketplaceAdmin"])
 service = MarketplaceService()
 minio = MinioService()
 
 # Login endpoint 
 @router.post('/login', response_model=bool)
-async def login(username: str, password: str):
-    try:
-        admin = get_admin_user(username, password)
-        if not admin:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+async def login(username: str, password: str, response: Response):
+    admin_username = os.getenv("ADMIN_USERNAME")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    
+    if not admin_username or not admin_password:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Admin credentials not configured")
+    
+    if username == admin_username and password == admin_password:
+        # Create admin token and set as HttpOnly cookie
+        admin_token = base64.b64encode(f"{username}:{password}".encode()).decode()
+        response.set_cookie(
+            key="admin_token",
+            value=admin_token,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax",
+            max_age=3600  # 1 hour
+        )
         return True
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    else:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
+
+# Logout endpoint
+@router.post('/logout', response_model=bool)
+async def logout(response: Response):
+    # Clear the admin cookie
+    response.delete_cookie(
+        key="admin_token",
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax"
+    )
+    return True
 
 
 # Tags CRUD
 @router.post("/tags", response_model=TagOut)
-def create_tag(payload: TagCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def create_tag(payload: TagCreate, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     return service.create_tag(db, name=payload.name, description=payload.description)
 
 
 @router.get("/tags", response_model=List[TagOut])
-def list_tags(db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def list_tags(request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     return service.list_tags(db)
 
 
 @router.delete("/tags/{tag_id}")
-def delete_tag(tag_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def delete_tag(tag_id: UUID, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     from sqlalchemy import delete
     tag = db.get(ProductTag, tag_id)
     if not tag:
@@ -53,7 +83,8 @@ def delete_tag(tag_id: UUID, db: Session = Depends(get_db), admin=Depends(get_ad
 
 
 @router.put("/tags/{tag_id}", response_model=TagOut)
-def update_tag(tag_id: UUID, payload: TagCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def update_tag(tag_id: UUID, payload: TagCreate, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     tag = db.get(ProductTag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -83,9 +114,10 @@ def create_product(
     colors: str | None = Form(None), # comma-separated
     tags: str | None = Form(None),   # comma-separated tag names (tag ids)
     images: List[UploadFile] = File(default_factory=list), # list of images
+    request: Request = None, # request for admin auth
     db: Session = Depends(get_db), # database session
-    admin=Depends(get_admin_user), # admin user
 ):
+    admin = get_admin_user(request)
     # Upload images to MinIO and collect URLs
     image_urls = minio.upload_product_uploadfiles(sku, images)
 
@@ -124,7 +156,8 @@ def create_product(
 
 
 @router.delete("/products/{product_id}")
-def delete_product(product_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def delete_product(product_id: UUID, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     # delete product from minio
     product = db.get(Product, product_id)
     if not product:
@@ -136,7 +169,8 @@ def delete_product(product_id: UUID, db: Session = Depends(get_db), admin=Depend
 
 
 @router.post("/products/{product_id}/tags/{tag_id}")
-def assign_tag_to_product(product_id: UUID, tag_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def assign_tag_to_product(product_id: UUID, tag_id: UUID, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     # manual link creation (service might also expose a helper)
     from sqlalchemy import select
     product = db.get(Product, product_id)
@@ -153,7 +187,8 @@ def assign_tag_to_product(product_id: UUID, tag_id: UUID, db: Session = Depends(
 
 # Collections
 @router.post("/collections", response_model=CollectionOut)
-def create_collection(payload: CollectionCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def create_collection(payload: CollectionCreate, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     existing = db.execute(select(Collection).where(Collection.name == payload.name)).scalar_one_or_none()
     if existing:
         return existing
@@ -165,12 +200,14 @@ def create_collection(payload: CollectionCreate, db: Session = Depends(get_db), 
 
 
 @router.get("/collections", response_model=List[CollectionOut])
-def list_collections(db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def list_collections(request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     return db.execute(select(Collection).order_by(Collection.name.asc())).scalars().all()
 
 
 @router.put("/collections/{collection_id}", response_model=CollectionOut)
-def update_collection(collection_id: UUID, payload: CollectionCreate, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def update_collection(collection_id: UUID, payload: CollectionCreate, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     col = db.get(Collection, collection_id)
     if not col:
         raise HTTPException(status_code=404, detail="Not found")
@@ -186,7 +223,8 @@ def update_collection(collection_id: UUID, payload: CollectionCreate, db: Sessio
 
 
 @router.delete("/collections/{collection_id}")
-def delete_collection(collection_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def delete_collection(collection_id: UUID, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     from sqlalchemy import delete
     db.execute(delete(Collection).where(Collection.id == collection_id))
     db.commit()
@@ -194,7 +232,8 @@ def delete_collection(collection_id: UUID, db: Session = Depends(get_db), admin=
 
 
 @router.post("/products/{product_id}/collections/{collection_id}")
-def assign_collection_to_product(product_id: UUID, collection_id: UUID, db: Session = Depends(get_db), admin=Depends(get_admin_user)):
+def assign_collection_to_product(product_id: UUID, collection_id: UUID, request: Request, db: Session = Depends(get_db)):
+    admin = get_admin_user(request)
     product = db.get(Product, product_id)
     col = db.get(Collection, collection_id)
     if not product or not col:

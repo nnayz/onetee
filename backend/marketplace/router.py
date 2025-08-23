@@ -5,13 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
-from auth.deps import get_current_user, get_admin_user
+from auth.deps import get_current_user
 from .service import MarketplaceService
-from .schemas import ProductCreate, ProductOut, TagCreate, TagOut, OrderOut, CreateOrderRequest, CheckoutSession
-from .models import Product, ProductTag, Order
+from .schemas import ProductOut, TagOut, OrderOut, CreateOrderRequest, CheckoutSession
+from .models import Product, Order
 
 
-router = APIRouter(prefix="/shop", tags=["Shop"])
+router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 service = MarketplaceService()
 
 
