@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+      tags: 
+          - 'v*'
+      paths:
+          - 'backend/**'
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+            
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                python-version: '3.13'
+            
+            - name: Install dependencies
+              working-directory: ./backend
+              run: |
+                pip install uv
+                uv sync
+            
+            - name: Run tests
+              working-directory: ./backend
+              run: |
+                uv run pytest
+            
+            - name: Build Docker image and push to Github container registry
+              working-directory: ./backend
+              run: |
+                docker build -t ghcr.io/${{ github.repository_owner }}/onetee-backend:${{ github.ref_name }} .
+                echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+                docker push ghcr.io/${{ github.repository_owner }}/onetee-backend:${{ github.ref_name }}
+            
+                
