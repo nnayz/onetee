@@ -5,4 +5,5 @@ export { default as MainFeed } from './MainFeed';
 export { default as MobileNavigation } from './MobileNavigation';
 export { default as MediaGrid } from './MediaGrid';
 export { default as MediaViewer } from './MediaViewer';
-export { default as ThreadCard } from './ThreadCard'; 
+export { default as ThreadCard } from './ThreadCard';
+export { default as ThreadView } from './ThreadView'; 

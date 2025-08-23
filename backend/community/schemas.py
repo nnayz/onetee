@@ -67,6 +67,8 @@ class ThreadWithAuthorOut(ThreadOut):
     likes: int = 0
     reposts: int = 0
     replies: int = 0
+    is_liked: bool = False
+    is_reposted: bool = False
 
 
 class ProfileCounts(BaseModel):

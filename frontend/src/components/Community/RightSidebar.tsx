@@ -8,7 +8,7 @@ interface RightSidebarProps {
 
 const RightSidebar: FC<RightSidebarProps> = ({ activityItems, isAuthenticated }) => {
   return (
-    <div className="hidden xl:block w-80 p-6">
+    <div className="hidden lg:block w-80 p-6">
       <div className="sticky top-24 space-y-6">
         
         {/* Recent Activity - live */}

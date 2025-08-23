@@ -3,13 +3,14 @@ import { useNavigate, useLocation } from "react-router-dom";
 import logo from "@/assets/logo_png.png";
 import { useQuery } from "@tanstack/react-query";
 import { AuthAPI } from "@/lib/api/auth";
+import HamburgerMenu from "@/components/HamburgerMenu";
 
 const Navbar: FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const meQuery = useQuery({ queryKey: ["auth","me"], queryFn: AuthAPI.me, retry: false });
   return (
-    <nav className="fixed top-0 inset-x-0 z-50 bg-inherit hover:bg-white border-none border-gray-200 pt-5">
+    <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 pt-5 pb-5">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3 ml-8">
           <img 
@@ -19,6 +20,7 @@ const Navbar: FC = () => {
             onClick={() => navigate('/')}
           />
         </div>
+        <HamburgerMenu />
         <div className="hidden md:flex items-center gap-8">
           <button
             onClick={() => navigate("/")}

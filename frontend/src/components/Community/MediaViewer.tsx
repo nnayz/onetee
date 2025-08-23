@@ -100,7 +100,7 @@ const MediaViewer: React.FC<MediaViewerProps> = ({
           )}
 
           {/* Media content */}
-          <div className="relative max-w-full max-h-full p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentIndex}
@@ -108,13 +108,14 @@ const MediaViewer: React.FC<MediaViewerProps> = ({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3 }}
-                className="flex items-center justify-center"
+                className="flex items-center justify-center w-full h-full"
               >
                 {currentMedia.media_type === "image" ? (
                   <img
                     src={currentMedia.url}
                     alt={currentMedia.alt_text || "Thread media"}
-                    className="max-w-full max-h-full object-contain"
+                    className="max-w-full max-h-full w-auto h-auto object-contain"
+                    style={{ maxHeight: '90vh', maxWidth: '90vw' }}
                     onError={(e) => {
                       console.error('Media image failed to load:', currentMedia.url, e);
                       e.currentTarget.style.display = 'none';

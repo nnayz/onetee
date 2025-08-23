@@ -4,13 +4,18 @@ import { useState } from "react";
 import type { DisplayThread, MediaItem } from "@/types/community.types";
 import MediaGrid from "./MediaGrid";
 import MediaViewer from "./MediaViewer";
+import ThreadView from "./ThreadView";
 
 interface MainFeedProps {
   threads: DisplayThread[];
-  onLike: (threadId: string) => void;
+  onLike: (threadId: string, isCurrentlyLiked: boolean) => void;
   onRepost: (threadId: string) => void;
   onNavigateToPost: (postId: string) => void;
   onNavigateToProfile: (username: string) => void;
+  likingThreadId?: string | null;
+  repostingThreadId?: string | null;
+  selectedThreadId?: string | null;
+  onBackToFeed: () => void;
 }
 
 const MainFeed: FC<MainFeedProps> = ({
@@ -18,7 +23,11 @@ const MainFeed: FC<MainFeedProps> = ({
   onLike,
   onRepost,
   onNavigateToPost,
-  onNavigateToProfile
+  onNavigateToProfile,
+  likingThreadId,
+  repostingThreadId,
+  selectedThreadId,
+  onBackToFeed
 }) => {
   const [mediaViewerState, setMediaViewerState] = useState<{
     isOpen: boolean;
@@ -30,7 +39,7 @@ const MainFeed: FC<MainFeedProps> = ({
     initialIndex: 0
   });
 
-  const handleMediaClick = (threadId: string, mediaIndex: number, mediaItems: MediaItem[]) => {
+  const handleMediaClick = (mediaIndex: number, mediaItems: MediaItem[]) => {
     setMediaViewerState({
       isOpen: true,
       mediaItems,
@@ -41,6 +50,17 @@ const MainFeed: FC<MainFeedProps> = ({
   const closeMediaViewer = () => {
     setMediaViewerState(prev => ({ ...prev, isOpen: false }));
   };
+
+  // If a thread is selected, show the ThreadView instead of the feed
+  if (selectedThreadId) {
+    return (
+      <ThreadView
+        threadId={selectedThreadId}
+        onBack={onBackToFeed}
+        onNavigateToProfile={onNavigateToProfile}
+      />
+    );
+  }
 
   return (
     <div className="pb-20 lg:pb-0">
@@ -91,7 +111,7 @@ const MainFeed: FC<MainFeedProps> = ({
                 <div className="mt-3">
                   <MediaGrid
                     mediaItems={thread.media_items}
-                    onMediaClick={(mediaIndex) => handleMediaClick(thread.id, mediaIndex, thread.media_items)}
+                    onMediaClick={(mediaIndex) => handleMediaClick(mediaIndex, thread.media_items)}
                     className="rounded-lg overflow-hidden"
                   />
                 </div>
@@ -101,7 +121,7 @@ const MainFeed: FC<MainFeedProps> = ({
                 <button className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 transition-colors duration-200 group"
                   onClick={() => onNavigateToPost(thread.id)}
                 >
-                  <div className="p-1 sm:p-2 group-hover:bg-blue-50">
+                  <div className="p-1 sm:p-2 group-hover:bg-blue-50 rounded-full">
                     <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
@@ -111,30 +131,32 @@ const MainFeed: FC<MainFeedProps> = ({
                 
                 <button 
                   onClick={() => onRepost(thread.id)}
+                  disabled={repostingThreadId === thread.id}
                   className={`flex items-center space-x-1 transition-colors duration-200 group ${
                     thread.isReposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'
-                  }`}
+                  } ${repostingThreadId === thread.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="p-1 sm:p-2 group-hover:bg-green-50">
+                  <div className="p-1 sm:p-2 group-hover:bg-green-50 rounded-full">
                     <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </div>
-                  <span className="text-xs sm:text-sm">{thread.reposts + (thread.isReposted ? 1 : 0)}</span>
+                  <span className="text-xs sm:text-sm">{thread.reposts}</span>
                 </button>
                 
                 <button 
-                  onClick={() => onLike(thread.id)}
+                  onClick={() => onLike(thread.id, thread.isLiked)}
+                  disabled={likingThreadId === thread.id}
                   className={`flex items-center space-x-1 transition-colors duration-200 group ${
                     thread.isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
-                  }`}
+                  } ${likingThreadId === thread.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="p-1 sm:p-2 group-hover:bg-red-50">
+                  <div className="p-1 sm:p-2 group-hover:bg-red-50 rounded-full">
                     <svg className={`w-3 h-3 sm:w-4 sm:h-4 ${thread.isLiked ? 'fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                   </div>
-                  <span className="text-xs sm:text-sm">{thread.likes + (thread.isLiked ? 1 : 0)}</span>
+                  <span className="text-xs sm:text-sm">{thread.likes}</span>
                 </button>
                 
                 <button className="flex items-center space-x-1 text-gray-500 hover:text-gray-700 transition-colors duration-200 group">

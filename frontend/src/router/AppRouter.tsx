@@ -7,7 +7,7 @@ import CommunityPage from "@/pages/CommunityPage";
 import MarketplacePage from "@/pages/MarketplacePage";
 import LoginPage from "@/pages/LoginPage";
 import ProfilePage from "@/pages/ProfilePage";
-import ThreadPage from "@/pages/ThreadPage";
+
 import ProtectedRoute from "@/router/ProtectedRoute";
 import { appConfig } from "@/config/appConfig";
 import Layout from "@/layouts/Layout";
@@ -31,7 +31,7 @@ const AppRouter = () => {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/community" element={<CommunityPage />} />
         <Route path="/u/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        		<Route path="/thread/:id" element={<ThreadPage />} />
+
         <Route path="/marketplace" element={<MarketplacePage />} />
         <Route path="/login" element={<LoginPage />} />
       </Routes>

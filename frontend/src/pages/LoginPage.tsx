@@ -44,7 +44,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-2xl mx-auto px-4 pt-24">
+              <div className="max-w-2xl mx-auto px-4">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={() => setMode("login")} className={`text-sm ${mode === "login" ? "text-gray-900 border-b border-gray-900" : "text-gray-600 hover:text-gray-900"}`}>Login</button>
           <button onClick={() => setMode("register")} className={`text-sm ${mode === "register" ? "text-gray-900 border-b border-gray-900" : "text-gray-600 hover:text-gray-900"}`}>Register</button>

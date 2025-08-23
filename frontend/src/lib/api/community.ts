@@ -15,6 +15,7 @@ export const CommunityAPI = {
   listThreads: (params?: { limit?: number; offset?: number; tag?: string }) => api.get(`/community/threads`, { params }).then((r) => r.data),
   createThread: (data: CreateThreadPayload) => api.post("/community/threads", data).then((r) => r.data),
   likeThread: (threadId: string) => api.post(`/community/threads/${threadId}/like`).then((r) => r.data),
+  unlikeThread: (threadId: string) => api.delete(`/community/threads/${threadId}/like`).then((r) => r.data),
   repostThread: (threadId: string) => api.post(`/community/threads/${threadId}/repost`).then((r) => r.data),
   bookmarkThread: (threadId: string) => api.post(`/community/threads/${threadId}/bookmark`).then((r) => r.data),
   deleteThread: (threadId: string) => api.delete(`/community/threads/${threadId}`).then((r) => r.data as { success: boolean }),

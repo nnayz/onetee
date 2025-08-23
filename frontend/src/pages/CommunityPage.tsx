@@ -17,18 +17,18 @@ import {
 const CommunityPage: FC = () => {
   const navigate = useNavigate();
   const [newThread, setNewThread] = useState("");
-  	const [threadError, setThreadError] = useState<string | null>(null);
+  const [threadError, setThreadError] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [likingThreadId, setLikingThreadId] = useState<string | null>(null);
+  const [repostingThreadId, setRepostingThreadId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [feedScrollPosition, setFeedScrollPosition] = useState<number>(0);
   const queryClient = useQueryClient();
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: AuthAPI.me });
 
-  // Track local interactions to show immediate feedback without mutating cache shape
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
-  const [repostedIds, setRepostedIds] = useState<Set<string>>(new Set());
-
-  	// Load threads from backend (newest first) and map to display threads via select
+  // Load threads from backend (newest first) and map to display threads via select
 	const threadsQuery = useQuery<ThreadWithAuthor[], Error, DisplayThread[]>({
 		queryKey: ["community", "threads", { tag: selectedTag || null }],
 		queryFn: () => CommunityAPI.listThreads({ limit: 50, tag: selectedTag || undefined }),
@@ -48,8 +48,8 @@ const CommunityPage: FC = () => {
         avatar: p.author?.avatar_url || (p.author?.username || "").slice(0, 2).toUpperCase(),
         avatarUrl: p.author?.avatar_url || null,
         media_items: p.media_items || [],
-        isLiked: likedIds.has(p.id),
-        isReposted: repostedIds.has(p.id),
+        isLiked: p.is_liked ?? false,
+        isReposted: p.is_reposted ?? false,
       }));
     },
   });
@@ -114,49 +114,60 @@ const CommunityPage: FC = () => {
 		}
   };
 
-  const handleLike = (threadId: string) => {
+  const handleLike = (threadId: string, isCurrentlyLiked: boolean) => {
     if (!meQuery.data?.id) return;
     if (!isUuid(threadId)) return; // avoid 422 for temp ids
-    setLikedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
-      return next;
-    });
-    		CommunityAPI.likeThread(threadId).then(() => {
-			queryClient.invalidateQueries({ queryKey: ["community", "threads"] });
+    if (likingThreadId === threadId) return; // prevent multiple clicks
+    
+    setLikingThreadId(threadId);
+    
+    // Call appropriate API
+    const apiCall = isCurrentlyLiked 
+      ? CommunityAPI.unlikeThread(threadId)
+      : CommunityAPI.likeThread(threadId);
+
+    apiCall.then(() => {
+      queryClient.invalidateQueries({ queryKey: ["community", "threads"] });
     }).catch(() => {
-      // revert on error
-      setLikedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
-        return next;
-      });
+      // Error handling - could show a toast notification here
+      console.error("Failed to update like status");
+    }).finally(() => {
+      setLikingThreadId(null);
     });
   };
 
   const handleRepost = (threadId: string) => {
     if (!meQuery.data?.id) return;
     if (!isUuid(threadId)) return; // avoid 422 for temp ids
-    setRepostedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
-      return next;
-    });
-    		CommunityAPI.repostThread(threadId).then(() => {
-			queryClient.invalidateQueries({ queryKey: ["community", "threads"] });
+    if (repostingThreadId === threadId) return; // prevent multiple clicks
+    
+    setRepostingThreadId(threadId);
+    
+    CommunityAPI.repostThread(threadId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["community", "threads"] });
     }).catch(() => {
-      // revert on error
-      setRepostedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(threadId)) next.delete(threadId); else next.add(threadId);
-        return next;
-      });
+      // Error handling - could show a toast notification here
+      console.error("Failed to repost thread");
+    }).finally(() => {
+      setRepostingThreadId(null);
     });
   };
 
   	const handleNavigateToThread = (threadId: string) => {
-		navigate(`/thread/${threadId}`);
+		// Save current scroll position before opening thread
+		setFeedScrollPosition(window.scrollY);
+		setSelectedThreadId(threadId);
+		// Scroll to top when opening thread
+		window.scrollTo(0, 0);
 	};
+
+  const handleBackToFeed = () => {
+    setSelectedThreadId(null);
+    // Restore scroll position after a brief delay to ensure DOM is updated
+    setTimeout(() => {
+      window.scrollTo(0, feedScrollPosition);
+    }, 100);
+  };
 
   const handleNavigateToProfile = (username: string) => {
     navigate(`/u/${username}`);
@@ -178,7 +189,7 @@ const CommunityPage: FC = () => {
       </div>
 
       {/* Twitter-like Layout */}
-      <div className="flex max-w-7xl mx-auto pt-16">
+      <div className="flex max-w-7xl mx-auto justify-center">
         
         {/* Left Sidebar */}
         <LeftSidebar
@@ -189,19 +200,21 @@ const CommunityPage: FC = () => {
 
         {/* Main Feed */}
         <div className="flex-1 w-full lg:max-w-xl lg:border-r border-gray-200 min-h-screen">
-          		{/* Thread Composer */}
-		<ThreadComposer
-            newThread={newThread}
-            setNewThread={setNewThread}
-            files={files}
-            setFiles={setFiles}
-            		postError={threadError}
-            		onPost={handleCreateThread}
-            isAuthenticated={!!meQuery.data?.id}
-            userAvatar={meQuery.data?.avatar_url}
-            username={meQuery.data?.username}
-            		isPosting={createThread.isPending}
-          />
+          {/* Thread Composer - only show when not viewing a thread */}
+          {!selectedThreadId && (
+            <ThreadComposer
+              newThread={newThread}
+              setNewThread={setNewThread}
+              files={files}
+              setFiles={setFiles}
+              postError={threadError}
+              onPost={handleCreateThread}
+              isAuthenticated={!!meQuery.data?.id}
+              userAvatar={meQuery.data?.avatar_url}
+              username={meQuery.data?.username}
+              isPosting={createThread.isPending}
+            />
+          )}
 
           {/* Feed */}
           <MainFeed
@@ -210,6 +223,10 @@ const CommunityPage: FC = () => {
             onRepost={handleRepost}
             onNavigateToPost={handleNavigateToThread}
             onNavigateToProfile={handleNavigateToProfile}
+            likingThreadId={likingThreadId}
+            repostingThreadId={repostingThreadId}
+            selectedThreadId={selectedThreadId}
+            onBackToFeed={handleBackToFeed}
           />
         </div>
 

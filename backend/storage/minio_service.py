@@ -26,7 +26,8 @@ class MinioService:
         access_key = os.getenv("MINIO_ROOT_USER", "minioadmin")
         secret_key = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
         secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
-        self.client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure)
+        region = os.getenv("MINIO_REGION", "ap-south-1")
+        self.client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
 
         self.bucket_avatars = os.getenv("MINIO_BUCKET_AVATARS", "onetee-avatars")
         self.bucket_threads = os.getenv("MINIO_BUCKET_THREADS", "onetee-threads")

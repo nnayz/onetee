@@ -77,8 +77,14 @@ def like_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get
 	return {"success": True}
 
 
+@router.delete("/threads/{thread_id}/like", response_model=ActionOut)
+def unlike_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+	service.unlike_thread(db, user_id=user.id, thread_id=thread_id)
+	return {"success": True}
+
+
 @router.get("/threads", response_model=list[ThreadWithAuthorOut])
-def list_threads(limit: int = 50, offset: int = 0, tag: str | None = None, db: Session = Depends(get_db)):
+def list_threads(limit: int = 50, offset: int = 0, tag: str | None = None, db: Session = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
 	# newest first with engagement counts
 	from sqlalchemy import select, func
 	from sqlalchemy.orm import joinedload
@@ -106,6 +112,17 @@ def list_threads(limit: int = 50, offset: int = 0, tag: str | None = None, db: S
 	rows = db.execute(stmt).unique().all()
 	result: list[dict] = []
 	for thread, likes, reposts, replies in rows:
+		# Get like/repost status for current user
+		is_liked = db.query(Like).filter(
+			Like.thread_id == thread.id,
+			Like.user_id == current_user.id
+		).first() is not None
+		
+		is_reposted = db.query(Repost).filter(
+			Repost.thread_id == thread.id,
+			Repost.user_id == current_user.id
+		).first() is not None
+		
 		mi = [
 			{"id": m.id, "url": m.url, "media_type": getattr(m, "media_type", "image"), "alt_text": getattr(m, "alt_text", None)}
 			for m in getattr(thread, "media_items", [])
@@ -128,6 +145,8 @@ def list_threads(limit: int = 50, offset: int = 0, tag: str | None = None, db: S
 				"likes": int(likes or 0),
 				"reposts": int(reposts or 0),
 				"replies": int(replies or 0),
+				"is_liked": is_liked,
+				"is_reposted": is_reposted,
 			}
 		)
 	return result
@@ -160,7 +179,7 @@ def delete_own_thread(thread_id: UUID, db: Session = Depends(get_db), user=Depen
 
 
 @router.get("/profiles/{username}/threads", response_model=list[ThreadWithAuthorOut])
-def profile_threads(username: str, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+def profile_threads(username: str, limit: int = 50, offset: int = 0, db: Session = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
 	from sqlalchemy import select, func
 	from sqlalchemy.orm import joinedload
 	subject = db.execute(select(CommunityUser).where(CommunityUser.username == username)).scalar_one_or_none()
@@ -189,6 +208,17 @@ def profile_threads(username: str, limit: int = 50, offset: int = 0, db: Session
 	rows = db.execute(stmt).unique().all()
 	result: list[dict] = []
 	for thread, likes, reposts, replies in rows:
+		# Get like/repost status for current user
+		is_liked = db.query(Like).filter(
+			Like.thread_id == thread.id,
+			Like.user_id == current_user.id
+		).first() is not None
+		
+		is_reposted = db.query(Repost).filter(
+			Repost.thread_id == thread.id,
+			Repost.user_id == current_user.id
+		).first() is not None
+		
 		mi = [
 			{"id": m.id, "url": m.url, "media_type": getattr(m, "media_type", "image"), "alt_text": getattr(m, "alt_text", None)}
 			for m in getattr(thread, "media_items", [])
@@ -211,6 +241,8 @@ def profile_threads(username: str, limit: int = 50, offset: int = 0, db: Session
 				"likes": int(likes or 0),
 				"reposts": int(reposts or 0),
 				"replies": int(replies or 0),
+				"is_liked": is_liked,
+				"is_reposted": is_reposted,
 			}
 		)
 	return result
@@ -243,8 +275,8 @@ async def get_thread(
         .where(Thread.id == thread_id)
     )
     
-    result = db.execute(stmt)
-    thread = result.scalar_one_or_none()
+    result = db.execute(stmt).unique()
+    thread = result.scalars().one_or_none()
     
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -289,6 +321,8 @@ async def get_thread(
         likes=likes_count,
         replies=replies_count,
         reposts=reposts_count,
+        is_liked=is_liked,
+        is_reposted=is_reposted,
     )
 
 
@@ -311,8 +345,8 @@ async def get_thread_with_replies(
         .where(Thread.id == thread_id)
     )
     
-    result = db.execute(stmt)
-    thread = result.scalar_one_or_none()
+    result = db.execute(stmt).unique()
+    thread = result.scalars().one_or_none()
     
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -346,7 +380,7 @@ async def get_thread_with_replies(
         .limit(limit)
     )
     
-    replies_result = db.execute(replies_stmt)
+    replies_result = db.execute(replies_stmt).unique()
     replies = replies_result.scalars().all()
     
     # Process replies
@@ -494,6 +528,8 @@ async def get_thread_replies(
             likes=likes_count,
             replies=replies_count,
             reposts=reposts_count,
+            is_liked=is_liked,
+            is_reposted=is_reposted,
         ))
     
     return threads_with_authors

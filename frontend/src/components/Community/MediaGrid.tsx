@@ -17,50 +17,42 @@ const MediaGrid: React.FC<MediaGridProps> = ({
 
   if (!mediaItems || mediaItems.length === 0) return null;
 
-  const getGridLayout = (count: number) => {
-    switch (count) {
-      case 1:
-        return "grid-cols-1";
-      case 2:
-        return "grid-cols-2 gap-1";
-      case 3:
-        return "grid-cols-2 gap-1";
-      case 4:
-        return "grid-cols-2 gap-1";
-      default:
-        return "grid-cols-2 gap-1";
-    }
+  const count = mediaItems.length;
+
+  const getContainerLayout = (c: number) => {
+    if (c === 1) return "grid-cols-1 grid-rows-1";
+    if (c === 2) return "grid-cols-2 grid-rows-1 gap-1";
+    // For 3 and 4, use 2x2 matrix
+    return "grid-cols-2 grid-rows-2 gap-1";
   };
 
   const getItemLayout = (index: number, total: number) => {
-    if (total === 1) return "row-span-1 col-span-1";
-    if (total === 2) return "row-span-1 col-span-1";
+    if (total === 1) return "col-span-1 row-span-1";
+    if (total === 2) return "col-span-1 row-span-1";
     if (total === 3) {
-      if (index === 0) return "row-span-2 col-span-1";
-      return "row-span-1 col-span-1";
+      // First fills left column, other two stack on right
+      if (index === 0) return "col-span-1 row-span-2";
+      return "col-span-1 row-span-1";
     }
-    if (total === 4) return "row-span-1 col-span-1";
-    return "row-span-1 col-span-1";
+    // 4 or more: simple 2x2
+    return "col-span-1 row-span-1";
   };
 
   const renderOverlay = (index: number, total: number) => {
     if (total <= 4) return null;
-    
     return (
-      <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-10">
+      <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
         <span className="text-white text-2xl font-bold">+{total - 4}</span>
       </div>
     );
   };
 
   return (
-    <div className={`grid ${getGridLayout(mediaItems.length)} aspect-video max-h-96 ${className}`}>
+    <div className={`grid aspect-square ${getContainerLayout(Math.min(count, 4))} ${className}`}>
       {mediaItems.slice(0, 4).map((media, index) => (
         <motion.div
           key={media.id}
-          className={`relative overflow-hidden ${getItemLayout(index, Math.min(mediaItems.length, 4))} ${
-            onMediaClick ? 'cursor-pointer' : ''
-          }`}
+          className={`relative overflow-hidden ${getItemLayout(index, Math.min(count, 4))} ${onMediaClick ? 'cursor-pointer' : ''}`}
           onMouseEnter={() => setHoveredIndex(index)}
           onMouseLeave={() => setHoveredIndex(null)}
           onClick={() => onMediaClick?.(index)}
@@ -85,17 +77,16 @@ const MediaGrid: React.FC<MediaGridProps> = ({
               </div>
             </div>
           )}
-          
-          {/* Hover overlay */}
+
           <AnimatePresence>
             {hoveredIndex === index && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center"
+                className="absolute inset-0 bg-black/20 flex items-center justify-center"
               >
-                <div className="bg-white bg-opacity-90 rounded-full p-2">
+                <div className="bg-white/90 rounded-full p-2">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                   </svg>
@@ -104,8 +95,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
             )}
           </AnimatePresence>
 
-          {/* More images overlay */}
-          {index === 3 && mediaItems.length > 4 && renderOverlay(index, mediaItems.length)}
+          {index === 3 && count > 4 && renderOverlay(index, count)}
         </motion.div>
       ))}
     </div>

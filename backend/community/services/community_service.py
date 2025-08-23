@@ -106,6 +106,17 @@ class CommunityService:
         db.commit()
         return True
 
+    def unlike_thread(self, db: Session, *, user_id: UUID, thread_id: UUID) -> bool:
+        from sqlalchemy import delete
+        existing = db.execute(
+            select(Like).where(Like.user_id == user_id, Like.thread_id == thread_id)
+        ).scalar_one_or_none()
+        if not existing:
+            return True
+        db.execute(delete(Like).where(Like.user_id == user_id, Like.thread_id == thread_id))
+        db.commit()
+        return True
+
     def repost_thread(self, db: Session, *, user_id: UUID, thread_id: UUID) -> bool:
         existing = db.execute(
             select(Repost).where(Repost.user_id == user_id, Repost.thread_id == thread_id)

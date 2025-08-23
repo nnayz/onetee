@@ -19,13 +19,15 @@ interface ThreadCardProps {
   reposts: number;
   is_liked?: boolean;
   is_reposted?: boolean;
-  onLike?: (threadId: string) => void;
+  onLike?: (threadId: string, isCurrentlyLiked: boolean) => void;
   onRepost?: (threadId: string) => void;
   onReply?: (threadId: string) => void;
   onMediaClick?: (mediaIndex: number, mediaItems: MediaItem[]) => void;
   onNavigateToProfile?: (username: string) => void;
   className?: string;
   compact?: boolean;
+  isLiking?: boolean;
+  isReposting?: boolean;
 }
 
 const ThreadCard: React.FC<ThreadCardProps> = ({
@@ -45,7 +47,9 @@ const ThreadCard: React.FC<ThreadCardProps> = ({
   onMediaClick,
   onNavigateToProfile,
   className = "",
-  compact = false
+  compact = false,
+  isLiking = false,
+  isReposting = false
 }) => {
   const avatarSize = compact ? "w-8 h-8" : "w-10 h-10";
   const textSize = compact ? "text-sm" : "text-base";
@@ -119,9 +123,10 @@ const ThreadCard: React.FC<ThreadCardProps> = ({
             
             <button 
               onClick={() => onRepost?.(id)}
+              disabled={isReposting}
               className={`flex items-center space-x-1 transition-colors duration-200 group ${
                 is_reposted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'
-              }`}
+              } ${isReposting ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="p-1 sm:p-2 group-hover:bg-green-50 rounded-full">
                 <svg className={`${iconSize}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,10 +137,11 @@ const ThreadCard: React.FC<ThreadCardProps> = ({
             </button>
             
             <button 
-              onClick={() => onLike?.(id)}
+              onClick={() => onLike?.(id, is_liked)}
+              disabled={isLiking}
               className={`flex items-center space-x-1 transition-colors duration-200 group ${
                 is_liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
-              }`}
+              } ${isLiking ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="p-1 sm:p-2 group-hover:bg-red-50 rounded-full">
                 <svg className={`${iconSize} ${is_liked ? 'fill-current' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

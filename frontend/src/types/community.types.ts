@@ -24,6 +24,8 @@ export interface CommunityThread {
   likes: number;
   reposts: number;
   replies: number;
+  is_liked: boolean;
+  is_reposted: boolean;
 }
 
 export interface ThreadWithAuthor {
@@ -38,6 +40,8 @@ export interface ThreadWithAuthor {
   likes: number;
   reposts: number;
   replies: number;
+  is_liked: boolean;
+  is_reposted: boolean;
 }
 
 export interface Profile {
