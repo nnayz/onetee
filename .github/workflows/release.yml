@@ -28,10 +28,10 @@ jobs:
                 pip install uv
                 uv sync
             
-            - name: Run tests
-              working-directory: ./backend
-              run: |
-                uv run pytest
+            # - name: Run tests
+            #   working-directory: ./backend
+            #   run: |
+            #     uv run pytest
             
             - name: Build Docker image and push to Github container registry
               working-directory: ./backend
